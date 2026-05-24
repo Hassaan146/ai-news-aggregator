@@ -1,0 +1,52 @@
+[project]
+name = "ai-news-aggregator"
+version = "0.1.0"
+description = "An AI-powered news aggregator that scrapes, summarizes, and emails daily digests"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    # Database
+    "sqlalchemy>=2.0.44",
+    "psycopg2-binary>=2.9.11",
+
+    # Web Scraping
+    "requests>=2.32.5",
+    "beautifulsoup4>=4.14.2",
+    "feedparser>=6.0.12",
+    "markdownify>=0.11.6",
+    "youtube-transcript-api>=1.2.3",
+
+    # AI / LLM
+    "openai>=1.0.0",
+
+    # Data Validation
+    "pydantic>=2.0.0",
+
+    # Environment & Config
+    "python-dotenv>=1.2.1",
+
+    # Scheduling
+    "schedule>=1.2.0",
+
+    # Markdown Processing
+    "markdown>=3.7.0",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.1.0",
+]
+
+[project.scripts]
+ai-news-aggregator = "main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
