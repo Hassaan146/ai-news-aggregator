@@ -24,14 +24,23 @@ HEADERS = {
 def scrape_all_sources(limit_per_source: int = 10) -> list[Article]:
     """Scrape every configured AI news source."""
 
+    if limit_per_source <= 0:
+        return []
+
     articles: list[Article] = []
     for source in SOURCES:
-        articles.extend(scrape_source(source, limit=limit_per_source))
+        try:
+            articles.extend(scrape_source(source, limit=limit_per_source))
+        except Exception as exc:
+            print(f"Skipping {source.name}: {exc}")
     return dedupe_articles(articles)
 
 
 def scrape_source(source: NewsSource, limit: int = 10) -> list[Article]:
     """Scrape one source, preferring RSS/Atom when configured."""
+
+    if limit <= 0:
+        return []
 
     if source.feed_url:
         feed_articles = scrape_feed(source, limit=limit)

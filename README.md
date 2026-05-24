@@ -34,8 +34,6 @@ Last updated: May 24, 2026
 - https://www.wired.com/tag/artificial-intelligence/
 - https://arstechnica.com/tag/artificial-intelligence/
 - https://www.axios.com/technology/artificial-intelligence
-- https://www.reuters.com/technology/artificial-intelligence/
-- https://www.bloomberg.com/artificial-intelligence
 - https://www.cnbc.com/artificial-intelligence/
 - https://the-decoder.com/
 - https://www.unite.ai/
@@ -55,7 +53,6 @@ Last updated: May 24, 2026
 - https://arxiv.org/list/cs.CL/recent
 - https://paperswithcode.com/
 - https://huggingface.co/papers
-- https://lmarena.ai/
 - https://hai.stanford.edu/news
 - https://bair.berkeley.edu/blog/
 - https://www.csail.mit.edu/news
@@ -71,10 +68,8 @@ Last updated: May 24, 2026
 - https://lastweekin.ai/
 - https://www.bensbites.co/
 - https://tldr.tech/ai
-- https://www.superhuman.ai/
 - https://futuretools.io/news
 - https://www.ai-roundup.dev/
-- https://talkaitoday.com/
 - https://theoutpost.ai/
 - https://aiagentic.news/
 
@@ -88,7 +83,6 @@ Last updated: May 24, 2026
 - https://partnershiponai.org/
 - https://www.eff.org/issues/ai
 - https://www.brookings.edu/topic/artificial-intelligence/
-- https://www.rand.org/topics/artificial-intelligence.html
 
 ## Suggested Starter Sources For This Project
 

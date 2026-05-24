@@ -8,6 +8,8 @@ from dataclasses import dataclass, field
 DEFAULT_LOOKBACK_HOURS = 24
 DEFAULT_SOURCE_LIMIT = 5
 DEFAULT_YOUTUBE_LIMIT = 5
+DEFAULT_YOUTUBE_COOLDOWN_HOURS = 6
+DEFAULT_YOUTUBE_RETRY_AFTER_HOURS = 12
 
 # Website sources are predefined in app.scrapers.sources.SOURCES.
 # Add YouTube channel IDs here when you want the pipeline to watch them.
@@ -24,4 +26,7 @@ class PipelineConfig:
     lookback_hours: int = DEFAULT_LOOKBACK_HOURS
     source_limit: int = DEFAULT_SOURCE_LIMIT
     youtube_limit: int = DEFAULT_YOUTUBE_LIMIT
+    youtube_cooldown_hours: int = DEFAULT_YOUTUBE_COOLDOWN_HOURS
+    youtube_retry_after_hours: int = DEFAULT_YOUTUBE_RETRY_AFTER_HOURS
     curate: bool = True
+    store: bool = True

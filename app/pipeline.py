@@ -14,8 +14,11 @@ def run_pipeline(config: PipelineConfig | None = None) -> str:
         youtube_channel_ids=config.youtube_channel_ids,
         source_limit=config.source_limit,
         youtube_limit=config.youtube_limit,
+        youtube_cooldown_hours=config.youtube_cooldown_hours,
+        youtube_retry_after_hours=config.youtube_retry_after_hours,
         lookback_hours=config.lookback_hours,
         curate=config.curate,
+        store=config.store,
     )
 
 
@@ -27,6 +30,9 @@ def run_pipeline_items(config: PipelineConfig | None = None):
         youtube_channel_ids=config.youtube_channel_ids,
         source_limit=config.source_limit,
         youtube_limit=config.youtube_limit,
+        youtube_cooldown_hours=config.youtube_cooldown_hours,
+        youtube_retry_after_hours=config.youtube_retry_after_hours,
         lookback_hours=config.lookback_hours,
         curate=config.curate,
+        store=config.store,
     )

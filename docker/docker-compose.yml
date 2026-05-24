@@ -1,1 +1,21 @@
-# Docker Compose placeholder - configure as needed
+services:
+  postgres:
+    image: postgres:16
+    container_name: ai-news-aggregator-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ai_news}
+      POSTGRES_USER: ${POSTGRES_USER:-ai_news}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ai_news_password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ai_news} -d ${POSTGRES_DB:-ai_news}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

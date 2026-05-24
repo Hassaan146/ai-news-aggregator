@@ -18,6 +18,9 @@ class ProcessedItem:
     summary: str = ""
     published_at: datetime | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    content: str | None = None
+    transcript: str | None = None
+    transcript_status: str = "not_requested"
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-friendly dictionary."""
@@ -30,4 +33,7 @@ class ProcessedItem:
             "summary": self.summary,
             "published_at": self.published_at.isoformat() if self.published_at else None,
             "metadata": self.metadata,
+            "content": self.content,
+            "transcript": self.transcript,
+            "transcript_status": self.transcript_status,
         }
