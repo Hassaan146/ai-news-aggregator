@@ -24,6 +24,10 @@ if TYPE_CHECKING:
 GMAIL_ADDRESS_PATTERN = re.compile(
     r"^[a-z0-9](?:[a-z0-9._%+-]{0,62}[a-z0-9])?@(gmail\.com|googlemail\.com)$"
 )
+EMAIL_ADDRESS_PATTERN = re.compile(
+    r"^[a-z0-9](?:[a-z0-9._%+-]{0,252}[a-z0-9])?@"
+    r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$"
+)
 
 
 def create_user(
@@ -32,9 +36,9 @@ def create_user(
     email: str,
     profile_name: str = "default_ai_reader",
 ) -> User:
-    """Create a user with a Gmail address."""
+    """Create a user with a valid email address."""
 
-    normalized_email = validate_gmail_address(email)
+    normalized_email = validate_email_address(email)
     user = User(name=name.strip(), email=normalized_email, profile_name=profile_name)
     session.add(user)
     session.flush()
@@ -49,7 +53,7 @@ def upsert_user(
 ) -> User:
     """Create or update a user by email."""
 
-    normalized_email = validate_gmail_address(email)
+    normalized_email = validate_email_address(email)
     user = get_user_by_email(session, normalized_email)
     if user is None:
         return create_user(session, name, normalized_email, profile_name)
@@ -243,11 +247,20 @@ def activate_payment_subscription(
 
 
 def validate_gmail_address(email: str) -> str:
-    """Require a Gmail or Googlemail address for user accounts."""
+    """Require a Gmail or Googlemail address."""
 
     normalized_email = email.strip().lower()
     if not GMAIL_ADDRESS_PATTERN.fullmatch(normalized_email):
-        raise ValueError("User email must be a valid Gmail address.")
+        raise ValueError("Email must be a valid Gmail address.")
+    return normalized_email
+
+
+def validate_email_address(email: str) -> str:
+    """Require a syntactically valid email address."""
+
+    normalized_email = email.strip().lower()
+    if not EMAIL_ADDRESS_PATTERN.fullmatch(normalized_email):
+        raise ValueError("Email must be a valid email address.")
     return normalized_email
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -226,7 +226,7 @@ def send_email(request: EmailSendRequest) -> dict:
 
 
 @app.post("/api/payments/checkout")
-def checkout(request: CheckoutRequest) -> dict:
+def checkout(request: CheckoutRequest, http_request: Request) -> dict:
     """Create a Stripe Checkout Session for the paid email plan."""
 
     try:
@@ -237,7 +237,7 @@ def checkout(request: CheckoutRequest) -> dict:
                 email=request.email,
                 profile_name="default_ai_reader",
             )
-        base_url = "http://127.0.0.1:8000"
+        base_url = str(http_request.base_url).rstrip("/")
         checkout_session = create_checkout_session(
             customer_email=user.email,
             customer_name=user.name,

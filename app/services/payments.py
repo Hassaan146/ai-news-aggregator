@@ -8,7 +8,7 @@ from uuid import uuid4
 import stripe
 from dotenv import load_dotenv
 
-from app.database.repository import validate_gmail_address
+from app.database.repository import validate_email_address
 
 load_dotenv()
 
@@ -26,7 +26,7 @@ def create_checkout_session(
 ) -> dict:
     """Create a Stripe Checkout Session and return its id/url."""
 
-    customer_email = validate_gmail_address(customer_email)
+    customer_email = validate_email_address(customer_email)
     mode = os.getenv("STRIPE_CHECKOUT_MODE", "subscription").strip().lower()
     price_id = clean_optional(os.getenv("STRIPE_PRICE_ID"))
     amount = int(os.getenv("STRIPE_AMOUNT_CENTS", str(DEFAULT_AMOUNT_CENTS)))

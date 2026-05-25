@@ -73,11 +73,11 @@ async function createCheckout() {
     email: document.querySelector("#stripeEmail").value.trim(),
   };
   if (!payload.email) {
-    stripeStatus.textContent = "Enter a Gmail address before starting checkout.";
+    stripeStatus.textContent = "Enter an email address before starting checkout.";
     return;
   }
 
-  stripeStatus.textContent = "Creating Stripe Checkout session...";
+  stripeStatus.textContent = "Opening Stripe Checkout for secure card entry...";
   try {
     const data = await postJson("/api/payments/checkout", payload);
     if (!data.url) {

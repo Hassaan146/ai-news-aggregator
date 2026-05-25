@@ -9,7 +9,7 @@ from email.message import EmailMessage
 from dotenv import load_dotenv
 
 from app.agent.email_agent import EmailDigest
-from app.database.repository import validate_gmail_address
+from app.database.repository import validate_email_address, validate_gmail_address
 
 load_dotenv()
 
@@ -31,7 +31,7 @@ def send_email_digest(
         raise RuntimeError("Missing GMAIL_ADDRESS or GMAIL_APP_PASSWORD in .env.")
 
     sender = validate_gmail_address(sender)
-    recipient_email = validate_gmail_address(recipient_email)
+    recipient_email = validate_email_address(recipient_email)
 
     message = EmailMessage()
     message["Subject"] = digest.subject
