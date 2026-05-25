@@ -7,7 +7,7 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -60,6 +60,32 @@ app.add_middleware(
 )
 app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 security = HTTPBearer(auto_error=False)
+
+
+@app.on_event("startup")
+def initialize_database() -> None:
+    """Create required tables when a new hosted database is attached."""
+
+    if os.getenv("AUTO_CREATE_TABLES", "true").strip().lower() not in {
+        "1",
+        "true",
+        "yes",
+    }:
+        return
+
+    from app.database.create_tables import create_tables
+
+    create_tables()
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Return JSON for unexpected errors so browser clients can display details."""
+
+    detail = "Internal server error. Check backend logs."
+    if os.getenv("DEBUG_API_ERRORS", "true").strip().lower() in {"1", "true", "yes"}:
+        detail = f"{type(exc).__name__}: {exc}"
+    return JSONResponse(status_code=500, content={"detail": detail})
 
 
 class DigestRequest(BaseModel):
@@ -168,6 +194,22 @@ def debug_cors(request: Request) -> dict:
             if origin.strip()
         ],
         "cors_origin_regex": DEFAULT_CORS_ORIGIN_REGEX,
+    }
+
+
+@app.get("/api/debug/db")
+def debug_db() -> dict:
+    """Return safe database table diagnostics for deployment debugging."""
+
+    from sqlalchemy import inspect
+
+    from app.database.connection import engine
+
+    inspector = inspect(engine)
+    return {
+        "ok": True,
+        "tables": sorted(inspector.get_table_names()),
+        "auto_create_tables": os.getenv("AUTO_CREATE_TABLES", "true"),
     }
 
 
