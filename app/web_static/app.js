@@ -42,7 +42,7 @@ async function loadDigests() {
 async function buildEmailPreview(sendLive) {
   const payload = {
     ...buildDigestPayload(),
-    name: document.querySelector("#emailName").value.trim() || "Hassan",
+    name: document.querySelector("#emailName").value.trim() || "Sample User",
     email: document.querySelector("#emailTo").value.trim(),
   };
 
@@ -69,7 +69,7 @@ async function buildEmailPreview(sendLive) {
 
 async function createCheckout() {
   const payload = {
-    name: document.querySelector("#stripeName").value.trim() || "Hassan",
+    name: document.querySelector("#stripeName").value.trim() || "Sample User",
     email: document.querySelector("#stripeEmail").value.trim(),
   };
   if (!payload.email) {

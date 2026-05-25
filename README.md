@@ -117,7 +117,7 @@ Google Account security settings after enabling 2-Step Verification.
 Create or update a user:
 
 ```powershell
-py -m app.user_runner --create --name Hassan --email your_user@gmail.com --profile default_ai_reader
+py -m app.user_runner --create --name "Sample User" --email your_user@gmail.com --profile default_ai_reader
 ```
 
 Preview the email for a stored user:

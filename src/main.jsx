@@ -1,12 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import Hls from "hls.js";
 import {
-  ArrowRight,
-  Check,
   CreditCard,
-  Globe,
   Layers,
   Lock,
   LogOut,
@@ -79,6 +76,29 @@ const contentTypeOptions = [
   ["youtube_video", "YouTube"],
 ];
 
+function BrandMark({ compact = false }) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="grid h-10 w-10 place-items-center rounded-2xl border border-white/20 bg-white text-[#07111f] shadow-lg shadow-black/20">
+        <div className="text-center leading-none">
+          <div className="text-sm font-semibold tracking-[-0.02em]">AN</div>
+          <div className="text-[8px] font-semibold uppercase tracking-[0.12em]">
+            News
+          </div>
+        </div>
+      </div>
+      {!compact && (
+        <div className="leading-tight text-left">
+          <div className="text-sm font-semibold text-white">AI News</div>
+          <div className="text-[10px] uppercase tracking-[0.18em] text-white/45">
+            Aggregator
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BackgroundVideo() {
   const videoRef = useRef(null);
 
@@ -127,8 +147,7 @@ function Navbar({ user, onOpenAuth, onDashboard, onOpenInfo }) {
             onClick={onDashboard}
             type="button"
           >
-            <Globe className="w-6 h-6 text-white" />
-            <span className="text-white font-semibold text-lg">Asme</span>
+            <BrandMark />
           </button>
           <div className="hidden md:flex items-center gap-8 text-white/80 text-sm font-medium">
             {["Features", "Pricing", "About"].map((link) => (
@@ -182,36 +201,6 @@ function Navbar({ user, onOpenAuth, onDashboard, onOpenInfo }) {
 }
 
 function Hero({ onOpenAuth }) {
-  const [showForm, setShowForm] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [placeholder, setPlaceholder] = useState("");
-  const [email, setEmail] = useState("");
-
-  useEffect(() => {
-    if (!showForm) return undefined;
-    const text = submitted
-      ? "You Will Receive Notifications By Email"
-      : "Enter Your Email Here For Early Access";
-    setPlaceholder("");
-    let index = 0;
-    const timer = window.setInterval(() => {
-      setPlaceholder(text.slice(0, index + 1));
-      index += 1;
-      if (index >= text.length) window.clearInterval(timer);
-    }, 60);
-    return () => window.clearInterval(timer);
-  }, [showForm, submitted]);
-
-  useEffect(() => {
-    if (!submitted) return undefined;
-    const timer = window.setTimeout(() => {
-      setSubmitted(false);
-      setShowForm(false);
-      setEmail("");
-    }, 4000);
-    return () => window.clearTimeout(timer);
-  }, [submitted]);
-
   return (
     <section className="relative flex-1 flex flex-col items-center justify-center px-6">
       <div className="relative z-10 text-center max-w-5xl mx-auto flex flex-col items-center justify-center w-full gap-12">
@@ -222,7 +211,7 @@ function Hero({ onOpenAuth }) {
             transition={{ delay: 0.1 }}
             className="text-white/80 text-[10px] md:text-[11px] font-medium tracking-[0.2em] uppercase mb-4"
           >
-            BUILD A NO-CODE AI APP IN MINUTES
+            PERSONALIZED AI NEWS DIGESTS
           </motion.p>
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
@@ -231,12 +220,12 @@ function Hero({ onOpenAuth }) {
             style={{ fontFamily: "'Instrument Serif', serif" }}
             className="text-4xl md:text-[64px] font-medium tracking-[-0.01em] leading-[1.1] mb-6 bg-gradient-to-b from-white via-white/95 to-white/70 bg-clip-text text-transparent max-w-4xl"
           >
-            A new way to think and create
-            <br className="hidden md:block" /> with computers
+            Daily AI news ranked around
+            <br className="hidden md:block" /> what you care about
           </motion.h1>
           <p className="mx-auto max-w-2xl text-white/70 text-sm md:text-base leading-7">
-            Register, set AI news priorities, rank digests, and subscribe to daily
-            email updates from your own AI news engine.
+            Track OpenAI, Anthropic, research labs, product launches, and trusted
+            AI media in one personalized dashboard with daily email digests.
           </p>
         </div>
 
@@ -246,64 +235,22 @@ function Hero({ onOpenAuth }) {
           transition={{ delay: 0.4 }}
           className="min-h-[50px] mt-2"
         >
-          <AnimatePresence mode="wait">
-            {!showForm ? (
-              <motion.button
-                key="button"
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="px-10 py-3 text-[14px] font-medium border border-white/10 rounded-full hover:border-white/30 hover:bg-white/[0.02] transition-all duration-300 text-white/90 backdrop-blur-sm cursor-pointer"
-                type="button"
-                onClick={() => setShowForm(true)}
-              >
-                Get early access
-              </motion.button>
-            ) : (
-              <motion.form
-                key="form"
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="flex items-center gap-2 pl-5 pr-1.5 py-1.5 text-[14px] font-medium border border-white/20 rounded-full bg-white/[0.02] backdrop-blur-sm w-full max-w-[320px] focus-within:border-white/40 transition-colors duration-300"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  setSubmitted(true);
-                  setTimeout(() => onOpenAuth("register", email), 600);
-                }}
-              >
-                <input
-                  autoFocus
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  className="bg-transparent outline-none text-white placeholder-white/45 flex-1 min-w-0"
-                  placeholder={placeholder}
-                  type="email"
-                />
-                <button
-                  type="submit"
-                  className="w-9 h-9 rounded-full bg-white text-black grid place-items-center"
-                >
-                  {submitted ? (
-                    <Check className="w-4 h-4" />
-                  ) : (
-                    <ArrowRight className="w-4 h-4" />
-                  )}
-                </button>
-              </motion.form>
-            )}
-          </AnimatePresence>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.8 }}
-          className="text-white/80 hover:text-white/40 transition-colors duration-300 text-[13px] font-medium tracking-wide"
-        >
-          Play Video Demo
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <button
+              className="rounded-full bg-white px-7 py-3 text-sm font-semibold text-[#07111f] transition-opacity hover:opacity-90"
+              type="button"
+              onClick={() => onOpenAuth("register")}
+            >
+              Create account
+            </button>
+            <button
+              className="rounded-full border border-white/15 bg-white/[0.04] px-7 py-3 text-sm font-semibold text-white/85 transition-colors hover:border-white/35 hover:text-white"
+              type="button"
+              onClick={() => onOpenAuth("login")}
+            >
+              Login
+            </button>
+          </div>
         </motion.div>
       </div>
     </section>
@@ -315,7 +262,7 @@ function InfoModal({ type, onClose, onOpenAuth }) {
     features: {
       eyebrow: "Features",
       title: "A personal operating layer for AI news",
-      body: "Asme combines source scraping, AI summarization, preference ranking, subscriptions, and email delivery into one workflow for builders tracking fast-moving AI updates.",
+      body: "AI News Aggregator combines source scraping, AI summarization, preference ranking, subscriptions, and email delivery into one workflow for tracking fast-moving AI updates.",
       items: [
         ["Priorities dashboard", "Pick profiles, sources, keywords, and content types with simple controls instead of raw setup."],
         ["Digest maker", "Choose top-N articles from any time window and rank them with LLM-based ranking plus deterministic fallback."],
@@ -328,7 +275,7 @@ function InfoModal({ type, onClose, onOpenAuth }) {
       body: "The current Stripe setup can save a card at $0.00 using Checkout setup mode. Later, you can switch to a live recurring Stripe Price for paid subscriptions.",
       items: [
         ["Free trial", "Use the dashboard, set priorities, and generate ranked digests."],
-        ["Subscription demo", "Use Stripe Checkout to collect payment credentials safely and store subscription records."],
+        ["Subscription flow", "Use Stripe Checkout to collect payment credentials safely and store subscription records."],
         ["Paid launch", "Set STRIPE_PRICE_ID to a live recurring price when you are ready to charge $1, $2, or more."],
       ],
     },
@@ -384,11 +331,11 @@ function InfoModal({ type, onClose, onOpenAuth }) {
           ))}
         </div>
         <button
-          className="mt-7 rounded-full bg-white text-black px-5 py-3 font-semibold"
+          className="mt-7 rounded-full bg-white px-5 py-3 font-semibold text-[#07111f]"
           onClick={() => onOpenAuth("register")}
           type="button"
         >
-          Create test account
+          Create account
         </button>
       </motion.div>
     </div>
@@ -398,7 +345,7 @@ function InfoModal({ type, onClose, onOpenAuth }) {
 function AuthModal({ mode, initialEmail, onClose, onAuth }) {
   const [isRegister, setIsRegister] = useState(mode !== "login");
   const [form, setForm] = useState({
-    name: "Hassan",
+    name: "",
     email: initialEmail || "",
     password: "",
   });
@@ -591,9 +538,8 @@ function Dashboard({ user, token, onLogout, onUser }) {
       <div className="absolute inset-0 bg-[#07111f]/58" />
       <div className="relative z-10 min-h-screen dashboard-grid p-4 gap-4">
         <aside className="liquid-glass rounded-[32px] p-5">
-          <div className="flex items-center gap-2 mb-8">
-            <Globe className="w-6 h-6" />
-            <span className="font-semibold text-lg">Asme</span>
+          <div className="mb-8">
+            <BrandMark />
           </div>
           <nav className="grid gap-2">
             <NavButton icon={Settings} active={page === "preferences"} onClick={() => setPage("preferences")}>Priorities</NavButton>
@@ -675,7 +621,7 @@ function GuideModal({ onClose, onStart }) {
               style={{ fontFamily: "'Instrument Serif', serif" }}
               className="mt-2 text-4xl md:text-5xl leading-tight"
             >
-              Here is how to use Asme
+              Here is how to use AI News
             </h2>
             <p className="mt-4 max-w-2xl text-white/65 leading-7">
               The app has three simple areas: priorities, digest making, and
@@ -1053,7 +999,6 @@ async function api(path, options = {}) {
         `Configured API base: ${apiBase || "(empty, using same domain)"}`,
         `Frontend origin: ${window.location.origin}`,
         `Backend health URL: ${(apiBase || window.location.origin).replace(/\/$/, "")}/api/health`,
-        `CORS debug URL: ${(apiBase || window.location.origin).replace(/\/$/, "")}/api/debug/cors`,
         `Browser error: ${err.message}`,
         "Likely causes: wrong VITE_API_BASE_URL, backend is down/asleep, HTTPS/CORS is blocked, or Render CORS_ORIGINS does not include this exact frontend URL.",
       ].join("\n")

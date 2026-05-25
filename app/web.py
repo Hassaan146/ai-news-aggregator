@@ -83,7 +83,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     """Return JSON for unexpected errors so browser clients can display details."""
 
     detail = "Internal server error. Check backend logs."
-    if os.getenv("DEBUG_API_ERRORS", "true").strip().lower() in {"1", "true", "yes"}:
+    if os.getenv("DEBUG_API_ERRORS", "false").strip().lower() in {"1", "true", "yes"}:
         detail = f"{type(exc).__name__}: {exc}"
     return JSONResponse(status_code=500, content={"detail": detail})
 
@@ -113,7 +113,7 @@ class UserRequest(BaseModel):
 class EmailPreviewRequest(DigestRequest):
     """Request for a rendered email preview."""
 
-    name: str = "Hassan"
+    name: str = "Sample User"
 
 
 class EmailSendRequest(EmailPreviewRequest):
@@ -177,39 +177,6 @@ def health(request: Request) -> dict:
         "service": "ai-news-aggregator-api",
         "origin": request.headers.get("origin"),
         "cors_origins_configured": bool(os.getenv("CORS_ORIGINS")),
-    }
-
-
-@app.get("/api/debug/cors")
-def debug_cors(request: Request) -> dict:
-    """Return safe CORS diagnostics for deployed frontend debugging."""
-
-    return {
-        "ok": True,
-        "origin": request.headers.get("origin"),
-        "host": request.headers.get("host"),
-        "cors_origins": [
-            origin.strip()
-            for origin in os.getenv("CORS_ORIGINS", "").split(",")
-            if origin.strip()
-        ],
-        "cors_origin_regex": DEFAULT_CORS_ORIGIN_REGEX,
-    }
-
-
-@app.get("/api/debug/db")
-def debug_db() -> dict:
-    """Return safe database table diagnostics for deployment debugging."""
-
-    from sqlalchemy import inspect
-
-    from app.database.connection import engine
-
-    inspector = inspect(engine)
-    return {
-        "ok": True,
-        "tables": sorted(inspector.get_table_names()),
-        "auto_create_tables": os.getenv("AUTO_CREATE_TABLES", "true"),
     }
 
 

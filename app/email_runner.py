@@ -19,7 +19,7 @@ def main() -> None:
         sys.stdout.reconfigure(encoding="utf-8")
 
     parser = argparse.ArgumentParser(description="Preview or send a daily AI news email.")
-    parser.add_argument("--name", default="Hassan")
+    parser.add_argument("--name", default="Sample User")
     parser.add_argument("--to", help="Stored user Gmail address.")
     parser.add_argument("--profile", default=None)
     parser.add_argument("--hours", type=int, default=24)
