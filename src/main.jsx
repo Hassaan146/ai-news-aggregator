@@ -7,7 +7,7 @@ import {
   Check,
   CreditCard,
   Globe,
-  LayoutDashboard,
+  Layers,
   Lock,
   LogOut,
   Mail,
@@ -66,7 +66,7 @@ function BackgroundVideo() {
   );
 }
 
-function Navbar({ user, onOpenAuth, onDashboard, onLogout }) {
+function Navbar({ user, onOpenAuth, onDashboard, onLogout, onOpenInfo }) {
   return (
     <motion.nav
       initial={{ y: -20, opacity: 0 }}
@@ -85,13 +85,14 @@ function Navbar({ user, onOpenAuth, onDashboard, onLogout }) {
           </button>
           <div className="hidden md:flex items-center gap-8 text-white/80 text-sm font-medium">
             {["Features", "Pricing", "About"].map((link) => (
-              <a
+              <button
                 className="hover:text-white transition-colors duration-300"
-                href={`#${link.toLowerCase()}`}
                 key={link}
+                onClick={() => onOpenInfo(link.toLowerCase())}
+                type="button"
               >
                 {link}
-              </a>
+              </button>
             ))}
           </div>
         </div>
@@ -263,6 +264,91 @@ function Hero({ onOpenAuth }) {
         </motion.div>
       </div>
     </section>
+  );
+}
+
+function InfoModal({ type, onClose, onOpenAuth }) {
+  const content = {
+    features: {
+      eyebrow: "Features",
+      title: "A personal operating layer for AI news",
+      body: "Asme combines source scraping, AI summarization, preference ranking, subscriptions, and email delivery into one workflow for builders tracking fast-moving AI updates.",
+      items: [
+        ["Profile priorities", "Save preferred sources, content types, keywords, and excluded terms for each user."],
+        ["Digest maker", "Choose top-N articles from a custom time window and rank them with LLM fallback logic."],
+        ["Daily email agent", "Subscribed users receive a daily 24-hour digest using the same ranking surface."],
+      ],
+    },
+    pricing: {
+      eyebrow: "Pricing",
+      title: "Test the full payment path before charging users",
+      body: "The current Stripe setup can save a card at $0.00 using Checkout setup mode. Later, you can switch to a live recurring Stripe Price for paid subscriptions.",
+      items: [
+        ["Free trial", "Use the dashboard, set priorities, and generate ranked digests."],
+        ["Subscription demo", "Use Stripe Checkout to collect payment credentials safely and store subscription records."],
+        ["Paid launch", "Set STRIPE_PRICE_ID to a live recurring price when you are ready to charge $1, $2, or more."],
+      ],
+    },
+    about: {
+      eyebrow: "About",
+      title: "Built as an end-to-end AI news product",
+      body: "The project is a deployable learning product: scrapers feed a database, digest agents summarize, ranking agents personalize, and the website exposes the workflow to users.",
+      items: [
+        ["Backend", "FastAPI, PostgreSQL, SQLAlchemy, Gemini-powered digest and ranking agents."],
+        ["Frontend", "React, Vite, Tailwind CSS v4, Motion, Lucide icons, HLS background video."],
+        ["Payments", "Stripe Checkout with local records for users, subscriptions, and transactions."],
+      ],
+    },
+  }[type];
+
+  if (!content) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 px-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="liquid-glass w-full max-w-3xl rounded-[30px] p-7"
+      >
+        <div className="flex items-start justify-between gap-6">
+          <div>
+            <p className="text-white/50 text-xs uppercase tracking-[0.2em]">
+              {content.eyebrow}
+            </p>
+            <h2
+              style={{ fontFamily: "'Instrument Serif', serif" }}
+              className="mt-2 text-4xl md:text-5xl leading-tight"
+            >
+              {content.title}
+            </h2>
+            <p className="mt-4 text-white/65 leading-7 max-w-2xl">
+              {content.body}
+            </p>
+          </div>
+          <button className="text-white/60" onClick={onClose} type="button">
+            Close
+          </button>
+        </div>
+        <div className="mt-7 grid md:grid-cols-3 gap-3">
+          {content.items.map(([title, text]) => (
+            <div
+              key={title}
+              className="rounded-3xl border border-white/10 bg-white/[0.035] p-4"
+            >
+              <h3 className="font-semibold">{title}</h3>
+              <p className="mt-2 text-sm leading-6 text-white/55">{text}</p>
+            </div>
+          ))}
+        </div>
+        <button
+          className="mt-7 rounded-full bg-white text-black px-5 py-3 font-semibold"
+          onClick={() => onOpenAuth("register")}
+          type="button"
+        >
+          Create test account
+        </button>
+      </motion.div>
+    </div>
   );
 }
 
@@ -512,6 +598,14 @@ function Subscription({ user, onCheckout }) {
         <p className="mt-2 text-white/65 leading-7">
           Stripe Checkout collects payment details securely. In test mode, use fake cards. In setup mode at $0.00, the card is saved without charge.
         </p>
+        <div className="mt-5 grid gap-2 text-sm text-white/60">
+          <div className="flex items-center gap-2">
+            <Layers className="w-4 h-4" /> Plan: AI News Daily Email
+          </div>
+          <div className="flex items-center gap-2">
+            <CreditCard className="w-4 h-4" /> Current setup: $0.00 card setup
+          </div>
+        </div>
         <div className="mt-5 text-sm text-white/60">Account: {user.email}</div>
         <button className="mt-6 rounded-full bg-white text-black px-6 py-3 font-semibold" onClick={onCheckout} type="button">Try payment</button>
       </div>
@@ -597,6 +691,7 @@ function NavButton({ icon: Icon, active, onClick, children }) {
 
 function App() {
   const [authMode, setAuthMode] = useState(null);
+  const [infoModal, setInfoModal] = useState(null);
   const [initialEmail, setInitialEmail] = useState("");
   const [token, setToken] = useState(() => localStorage.getItem("asme_token") || "");
   const [user, setUser] = useState(null);
@@ -636,8 +731,21 @@ function App() {
   return (
     <main className="relative bg-black h-screen w-screen flex flex-col overflow-hidden selection:bg-white selection:text-black shrink-0">
       <BackgroundVideo />
-      <Navbar user={user} onOpenAuth={openAuth} onDashboard={() => openAuth("login")} onLogout={logout} />
+      <Navbar
+        user={user}
+        onOpenAuth={openAuth}
+        onDashboard={() => openAuth("login")}
+        onLogout={logout}
+        onOpenInfo={setInfoModal}
+      />
       <Hero onOpenAuth={openAuth} />
+      {infoModal && (
+        <InfoModal
+          type={infoModal}
+          onClose={() => setInfoModal(null)}
+          onOpenAuth={openAuth}
+        />
+      )}
       {authMode && (
         <AuthModal
           mode={authMode}
