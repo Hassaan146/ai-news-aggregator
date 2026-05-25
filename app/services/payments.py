@@ -168,6 +168,15 @@ def retrieve_checkout_session(session_id: str):
     return stripe.checkout.Session.retrieve(session_id)
 
 
+def construct_webhook_event(payload: bytes, signature: str):
+    """Verify and construct a Stripe webhook event."""
+
+    webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
+    if not webhook_secret:
+        raise RuntimeError("Missing STRIPE_WEBHOOK_SECRET in .env.")
+    return stripe.Webhook.construct_event(payload, signature, webhook_secret)
+
+
 def clean_optional(value: str | None) -> str | None:
     """Return a stripped optional string."""
 

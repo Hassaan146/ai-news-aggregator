@@ -156,12 +156,14 @@ payment:
 
 ```env
 STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key_here
+STRIPE_WEBHOOK_SECRET=whsec_your_stripe_webhook_secret_here
 STRIPE_CHECKOUT_MODE=subscription
 STRIPE_PRICE_ID=
 STRIPE_AMOUNT_CENTS=0
 STRIPE_CURRENCY=usd
 STRIPE_INTERVAL=month
 STRIPE_PRODUCT_NAME=AI News Daily Email Plan
+APP_BASE_URL=http://127.0.0.1:8000
 ```
 
 Use a Stripe key from the correct environment while developing. Your payout/bank
@@ -183,6 +185,21 @@ For a Stripe-hosted demo payment:
 If you are using a Stripe test key, use Stripe test card `4242 4242 4242 4242`,
 any future expiry, and any CVC. Do not use real card details with Stripe test
 keys.
+
+For live mode:
+
+1. Activate your Stripe account and complete payout/bank setup in the Stripe
+   Dashboard.
+2. Replace `STRIPE_SECRET_KEY` with your live `sk_live_...` key.
+3. Set `APP_BASE_URL` to your deployed HTTPS URL.
+4. Add a webhook endpoint in Stripe Dashboard:
+   `https://your-domain.com/api/payments/webhook`
+5. Listen for `checkout.session.completed`.
+6. Copy the webhook signing secret into `STRIPE_WEBHOOK_SECRET`.
+7. Keep `STRIPE_AMOUNT_CENTS=0` and `STRIPE_PRICE_ID=` empty if you only want to
+   collect/save a card without charging it.
+8. Later, for real paid subscriptions, create a recurring live Price in Stripe
+   and set `STRIPE_PRICE_ID=price_...`.
 
 Step 3 will improve the production UI design after the test flow is working.
 

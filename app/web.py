@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -21,7 +22,11 @@ from app.database.repository import (
 from app.profiles.user_profile import PROFILES, UserProfile, get_profile
 from app.services.aggregator_surface import get_top_digests
 from app.services.email import send_email_digest
-from app.services.payments import create_checkout_session, retrieve_checkout_session
+from app.services.payments import (
+    construct_webhook_event,
+    create_checkout_session,
+    retrieve_checkout_session,
+)
 
 WEB_DIR = Path(__file__).parent / "web_static"
 
@@ -237,7 +242,8 @@ def checkout(request: CheckoutRequest, http_request: Request) -> dict:
                 email=request.email,
                 profile_name="default_ai_reader",
             )
-        base_url = str(http_request.base_url).rstrip("/")
+        base_url = os.getenv("APP_BASE_URL") or str(http_request.base_url).rstrip("/")
+        base_url = base_url.rstrip("/")
         checkout_session = create_checkout_session(
             customer_email=user.email,
             customer_name=user.name,
@@ -267,6 +273,27 @@ def checkout(request: CheckoutRequest, http_request: Request) -> dict:
         return checkout_session
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/payments/webhook")
+async def stripe_webhook(request: Request) -> dict:
+    """Handle Stripe webhook events for production checkout fulfillment."""
+
+    payload = await request.body()
+    signature = request.headers.get("stripe-signature", "")
+    try:
+        event = construct_webhook_event(payload, signature)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if event["type"] == "checkout.session.completed":
+        checkout_session = event["data"]["object"]
+        fulfill_checkout_session(
+            checkout_session_id=checkout_session["id"],
+            checkout_payload=checkout_session,
+            send_email=True,
+        )
+    return {"received": True}
 
 
 def build_profile(request: DigestRequest) -> UserProfile:
@@ -309,28 +336,50 @@ def clean_optional(value: str | None) -> str | None:
 def complete_checkout_success(session_id: str) -> str:
     """Activate a local subscription after Stripe redirects back."""
 
-    checkout_payload = None
-    stripe_customer_id = None
-    stripe_subscription_id = None
     checkout_payload = retrieve_checkout_session(session_id)
-    stripe_customer_id = checkout_payload.customer
-    stripe_subscription_id = checkout_payload.subscription
-    setup_intent_id = checkout_payload.setup_intent
+    email_address = fulfill_checkout_session(
+        checkout_session_id=session_id,
+        checkout_payload=checkout_payload,
+        send_email=True,
+    )
+    return f"Subscription activated and a demo digest email was sent to {email_address}."
 
+
+def fulfill_checkout_session(
+    checkout_session_id: str,
+    checkout_payload,
+    send_email: bool = True,
+) -> str:
+    """Activate a subscription and optionally send the demo digest email."""
+
+    stripe_customer_id = getattr(checkout_payload, "customer", None) or checkout_payload.get(
+        "customer"
+    )
+    stripe_subscription_id = getattr(
+        checkout_payload, "subscription", None
+    ) or checkout_payload.get("subscription")
+    setup_intent_id = getattr(checkout_payload, "setup_intent", None) or checkout_payload.get(
+        "setup_intent"
+    )
+    payload_dict = (
+        checkout_payload.to_dict()
+        if hasattr(checkout_payload, "to_dict")
+        else dict(checkout_payload)
+    )
     with get_session() as session:
         subscription = get_payment_subscription_by_checkout_session_id(
             session=session,
-            checkout_session_id=session_id,
+            checkout_session_id=checkout_session_id,
         )
         if subscription is None:
-            return "Checkout succeeded, but no local subscription row was found."
+            raise RuntimeError("Checkout succeeded, but no local subscription row was found.")
 
         activate_payment_subscription(
             session=session,
             subscription=subscription,
             stripe_customer_id=stripe_customer_id,
             stripe_subscription_id=stripe_subscription_id,
-            raw_payload=checkout_payload.to_dict() if checkout_payload else None,
+            raw_payload=payload_dict,
         )
         create_payment_transaction(
             session=session,
@@ -339,24 +388,25 @@ def complete_checkout_success(session_id: str) -> str:
             amount_cents=subscription.amount_cents,
             currency=subscription.currency,
             subscription=subscription,
-            stripe_checkout_session_id=session_id,
-            raw_payload=checkout_payload.to_dict(),
+            stripe_checkout_session_id=checkout_session_id,
+            raw_payload=payload_dict,
         )
         email_address = subscription.user.email
         name = subscription.user.name
 
-    digest_response = get_top_digests(
-        hours=24,
-        top_n=10,
-        profile_name="default_ai_reader",
-        use_llm=False,
-    )
-    email = EmailAgent().build_daily_digest_email(
-        recipient_name=name,
-        top_digests=digest_response,
-    )
-    send_email_digest(email_address, email)
-    return f"Subscription activated and a demo digest email was sent to {email_address}."
+    if send_email:
+        digest_response = get_top_digests(
+            hours=24,
+            top_n=10,
+            profile_name="default_ai_reader",
+            use_llm=False,
+        )
+        email = EmailAgent().build_daily_digest_email(
+            recipient_name=name,
+            top_digests=digest_response,
+        )
+        send_email_digest(email_address, email)
+    return email_address
 
 
 def build_message_page(title: str, eyebrow: str, message: str) -> str:
