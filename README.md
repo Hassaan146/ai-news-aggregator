@@ -1,217 +1,243 @@
-﻿# AI News Aggregator
+# AI News Aggregator
 
-A curated list of websites that regularly publish AI news, product updates, research, policy, and industry analysis. Use these as seed sources for tracking OpenAI news and the broader AI ecosystem.
+AI News Aggregator is a full-stack AI news product that scrapes trusted AI
+sources, stores articles and YouTube updates in PostgreSQL, generates digest
+summaries with an LLM, ranks them against user priorities, and exposes the
+result in a React dashboard.
 
-Last updated: May 24, 2026
+Last updated: May 26, 2026
 
-## Official AI Company News
+## What It Does
 
-- https://openai.com/news/
-- https://openai.com/blog/
-- https://www.anthropic.com/news
-- https://deepmind.google/blog/
-- https://ai.googleblog.com/
-- https://cloud.google.com/blog/products/ai-machine-learning
-- https://ai.meta.com/blog/
-- https://blogs.microsoft.com/ai/
-- https://www.microsoft.com/en-us/research/research-area/artificial-intelligence/
-- https://blogs.nvidia.com/blog/category/deep-learning/
-- https://mistral.ai/news/
-- https://x.ai/news
-- https://huggingface.co/blog
-- https://stability.ai/news
-- https://cohere.com/blog
-- https://www.perplexity.ai/hub/blog
-- https://aws.amazon.com/blogs/machine-learning/
-- https://machinelearning.apple.com/
+- Scrapes AI news, research, product blogs, newsletters, policy sources, and
+  YouTube channel RSS feeds.
+- Stores fetched URLs, titles, summaries, metadata, and transcripts/status in
+  the database.
+- Creates digest rows from stored news items.
+- Ranks digest rows according to each user's selected sources, content types,
+  and keywords.
+- Falls back to deterministic ranking/summaries if the LLM is unavailable.
+- Supports user accounts, reviews, Stripe checkout, and daily email delivery.
 
-## AI News And Tech Media
+## Source Coverage
 
-- https://techcrunch.com/category/artificial-intelligence/
-- https://www.theverge.com/ai-artificial-intelligence
-- https://venturebeat.com/category/ai/
-- https://www.technologyreview.com/topic/artificial-intelligence/
-- https://www.wired.com/tag/artificial-intelligence/
-- https://arstechnica.com/tag/artificial-intelligence/
-- https://www.axios.com/technology/artificial-intelligence
-- https://www.cnbc.com/artificial-intelligence/
-- https://the-decoder.com/
-- https://www.unite.ai/
-- https://www.artificialintelligence-news.com/
-- https://aibusiness.com/
-- https://www.infoq.com/ai-ml-data-eng/
-- https://www.kdnuggets.com/
-- https://www.analyticsvidhya.com/blog/
-- https://towardsdatascience.com/
-- https://www.marktechpost.com/
-- https://syncedreview.com/
-
-## Research And Model Tracking
-
-- https://arxiv.org/list/cs.AI/recent
-- https://arxiv.org/list/cs.LG/recent
-- https://arxiv.org/list/cs.CL/recent
-- https://paperswithcode.com/
-- https://huggingface.co/papers
-- https://hai.stanford.edu/news
-- https://bair.berkeley.edu/blog/
-- https://www.csail.mit.edu/news
-- https://thegradient.pub/
-- https://distill.pub/
-- https://research.google/blog/
-- https://allenai.org/blog
-
-## Newsletters And Curated Feeds
-
-- https://www.deeplearning.ai/the-batch/
-- https://jack-clark.net/
-- https://lastweekin.ai/
-- https://www.bensbites.co/
-- https://tldr.tech/ai
-- https://futuretools.io/news
-- https://www.ai-roundup.dev/
-- https://theoutpost.ai/
-- https://aiagentic.news/
-
-## AI Policy, Safety, And Society
-
-- https://www.nist.gov/artificial-intelligence
-- https://oecd.ai/
-- https://ainowinstitute.org/
-- https://futureoflife.org/artificial-intelligence/
-- https://www.safe.ai/
-- https://partnershiponai.org/
-- https://www.eff.org/issues/ai
-- https://www.brookings.edu/topic/artificial-intelligence/
-
-## Suggested Starter Sources For This Project
-
-For a practical first version of the aggregator, start with these high-signal sources:
-
-- https://openai.com/news/
-- https://www.anthropic.com/news
-- https://deepmind.google/blog/
-- https://techcrunch.com/category/artificial-intelligence/
-- https://www.theverge.com/ai-artificial-intelligence
-- https://www.technologyreview.com/topic/artificial-intelligence/
-- https://venturebeat.com/category/ai/
-- https://www.deeplearning.ai/the-batch/
-- https://arxiv.org/list/cs.AI/recent
-- https://huggingface.co/papers
-
-## User Accounts And Email Sending
-
-User accounts are stored in the `users` table. Accounts must use a Gmail or
-Googlemail address because the first live email sender uses Gmail SMTP.
-
-Add these values to `.env` before sending live emails:
-
-```env
-GMAIL_ADDRESS=your_sender_gmail@gmail.com
-GMAIL_APP_PASSWORD=your_gmail_app_password_here
-```
-
-The Gmail app password is not your normal Gmail password. Create it from your
-Google Account security settings after enabling 2-Step Verification.
-
-Create or update a user:
-
-```powershell
-py -m app.user_runner --create --name "Sample User" --email your_user@gmail.com --profile default_ai_reader
-```
-
-Preview the email for a stored user:
-
-```powershell
-py -m app.email_runner --to your_user@gmail.com --hours 24 --top-n 10 --no-llm
-```
-
-Send the live email:
-
-```powershell
-py -m app.email_runner --to your_user@gmail.com --hours 24 --top-n 10 --send --no-llm
-```
-
-## Basic Local GUI
-
-Run the backend API:
-
-```powershell
-py -m uvicorn app.web:app --host 127.0.0.1 --port 8000 --reload
-```
-
-Run the React frontend:
-
-```powershell
-node "C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js" run dev
-```
-
-Then open the live website:
+The scraper source registry lives in:
 
 ```text
-http://127.0.0.1:5173
+app/scrapers/sources.py
 ```
 
-The legacy backend-served page remains available at:
+Current website source count:
 
 ```text
-http://127.0.0.1:8000
+164 website sources
 ```
 
-Step 1 is the free-trial GUI: choose preferences, optionally paste a temporary
-Gemini API key override, and view top digests for the last X hours. The page
-shows whether ranking used `llm`, `deterministic`, or `fallback`.
+The YouTube channel registry lives in:
 
-Step 2 will add Stripe payment for the paid email version. The current GUI has a
-Checkout button for it. Add these Stripe values to `.env` before testing a
-payment:
+```text
+app/scrapers/youtube_channels.py
+```
+
+Current YouTube source count:
+
+```text
+36 AI YouTube channels
+```
+
+The source categories include:
+
+- Official AI companies and labs
+- AI developer platforms and agent frameworks
+- Vector database and RAG tooling blogs
+- AI news and tech media
+- Research labs and paper-tracking sources
+- Newsletters and curated feeds
+- AI policy, safety, and security sources
+- YouTube AI news, research, and builder channels
+
+## Important Runtime Limits
+
+The dashboard is intentionally capped so one user request does not overload the
+scrapers or LLM key:
+
+```text
+Lookback window: up to 72 hours
+Digest results: up to 10 articles
+Default digest window: 72 hours
+Default digest count: 10
+```
+
+Undated sources are handled as latest scraped posts. Dated posts are preferred
+first; if fewer than 10 dated posts are available, latest undated posts can fill
+the remaining slots.
+
+## LLM Setup
+
+The current recommended LLM provider is Groq using OpenAI OSS 120B:
 
 ```env
-STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key_here
-STRIPE_WEBHOOK_SECRET=whsec_your_stripe_webhook_secret_here
+LLM_PROVIDER=groq
+LLM_MODEL=openai/gpt-oss-120b
+GROQ_API_KEY=your_groq_api_key
+```
+
+Gemini can still be used as fallback/manual replacement:
+
+```env
+LLM_PROVIDER=gemini
+LLM_MODEL=gemini-2.5-flash-lite
+GEMINI_API_KEY=your_gemini_api_key
+```
+
+Never commit API keys. Add them only to `.env` locally or Render environment
+variables in deployment.
+
+## Render Environment Variables
+
+Use these for the backend deployment:
+
+```env
+DATABASE_URL=your_neon_postgres_url
+CORS_ORIGINS=https://your-vercel-url.vercel.app
+AUTH_SECRET_KEY=your_long_random_secret
+
+LLM_PROVIDER=groq
+LLM_MODEL=openai/gpt-oss-120b
+GROQ_API_KEY=your_groq_api_key
+
+SCRAPE_ON_DIGEST=true
+SCRAPE_MAX_SOURCES=20
+SCRAPE_SOURCE_LIMIT=3
+SCRAPE_YOUTUBE_LIMIT=1
+YOUTUBE_CHANNEL_LIMIT=10
+
+DIGEST_GENERATION_LIMIT=25
+DIGEST_GENERATION_DELAY_SECONDS=8
+DIGEST_ALLOW_FALLBACK=true
+
+STRIPE_SECRET_KEY=your_stripe_secret_key
+STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
 STRIPE_CHECKOUT_MODE=subscription
 STRIPE_PRICE_ID=
 STRIPE_AMOUNT_CENTS=0
 STRIPE_CURRENCY=usd
 STRIPE_INTERVAL=month
 STRIPE_PRODUCT_NAME=AI News Daily Email Plan
-APP_BASE_URL=http://127.0.0.1:8000
+APP_BASE_URL=https://your-render-backend-url.onrender.com
 ```
 
-Use a Stripe key from the correct environment while developing. Your payout/bank
-account is set inside the Stripe Dashboard, not inside this app. With
-`STRIPE_AMOUNT_CENTS=0` and an empty `STRIPE_PRICE_ID`, the app creates a Stripe
-Checkout `setup` session. That opens Stripe's secure card form, saves/validates a
-payment method, and does not charge the card.
+For live email sending:
 
-For a Stripe-hosted demo payment:
+```env
+GMAIL_ADDRESS=your_sender_gmail@gmail.com
+GMAIL_APP_PASSWORD=your_gmail_app_password
+```
 
-1. Keep `STRIPE_CHECKOUT_MODE=subscription`.
-2. Keep `STRIPE_AMOUNT_CENTS=0`.
-3. Leave `STRIPE_PRICE_ID=` empty.
-4. Use the website's `Try payment` button.
-5. Enter the card on Stripe's secure page.
-6. After Stripe redirects back, the app activates the subscription and sends the
-   demo digest email.
+## Local Development
 
-If you are using a Stripe test key, use Stripe test card `4242 4242 4242 4242`,
-any future expiry, and any CVC. Do not use real card details with Stripe test
-keys.
+Install dependencies:
 
-For live mode:
+```powershell
+pip install -r requirements.txt
+npm install
+```
 
-1. Activate your Stripe account and complete payout/bank setup in the Stripe
-   Dashboard.
-2. Replace `STRIPE_SECRET_KEY` with your live `sk_live_...` key.
-3. Set `APP_BASE_URL` to your deployed HTTPS URL.
-4. Add a webhook endpoint in Stripe Dashboard:
-   `https://your-domain.com/api/payments/webhook`
-5. Listen for `checkout.session.completed`.
-6. Copy the webhook signing secret into `STRIPE_WEBHOOK_SECRET`.
-7. Keep `STRIPE_AMOUNT_CENTS=0` and `STRIPE_PRICE_ID=` empty if you only want to
-   collect/save a card without charging it.
-8. Later, for real paid subscriptions, create a recurring live Price in Stripe
-   and set `STRIPE_PRICE_ID=price_...`.
+Run the backend:
 
-Step 3 will improve the production UI design after the test flow is working.
+```powershell
+py -m uvicorn app.web:app --host 127.0.0.1 --port 8000 --reload
+```
 
+Run the frontend:
+
+```powershell
+npm run dev
+```
+
+Open:
+
+```text
+http://127.0.0.1:5173
+```
+
+## Database Setup
+
+Create tables:
+
+```powershell
+py -m app.database.create_tables
+```
+
+The deployed backend also auto-creates required tables on startup unless:
+
+```env
+AUTO_CREATE_TABLES=false
+```
+
+## Pipeline Flow
+
+When a user clicks **Make and rank digests**:
+
+1. The frontend validates the request before calling the backend.
+2. The backend reads saved/selected priorities.
+3. Selected source names are mapped to scraper sources.
+4. Source URLs and YouTube RSS feeds are fetched.
+5. Fetched items are stored/upserted in the database by URL.
+6. Missing digest rows are generated from stored database rows.
+7. The aggregator ranks digest rows against the user's profile.
+8. The dashboard shows up to 10 readable digest cards.
+
+## Useful Commands
+
+Run the main pipeline:
+
+```powershell
+py main.py --source-limit 3 --youtube-limit 1 --lookback-hours 72 --store
+```
+
+Generate missing digest rows:
+
+```powershell
+py -m app.digest_runner --limit 25 --lookback-hours 72 --delay-seconds 8
+```
+
+Get top ranked digests:
+
+```powershell
+py -m app.aggregator_runner --hours 72 --top-digests --top-n 10
+```
+
+Preview email:
+
+```powershell
+py -m app.email_runner --to your_user@gmail.com --hours 72 --top-n 10 --no-llm
+```
+
+Send email:
+
+```powershell
+py -m app.email_runner --to your_user@gmail.com --hours 72 --top-n 10 --send --no-llm
+```
+
+## Deployment
+
+Backend:
+
+- Render web service
+- Start command:
+
+```text
+uvicorn app.web:app --host 0.0.0.0 --port $PORT
+```
+
+Frontend:
+
+- Vercel
+- Add:
+
+```env
+VITE_API_BASE_URL=https://your-render-backend-url.onrender.com
+```
+
+After backend changes, redeploy Render. After frontend changes, redeploy Vercel.
