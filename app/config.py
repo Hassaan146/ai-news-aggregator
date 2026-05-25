@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from app.scrapers.youtube_channels import YOUTUBE_CHANNEL_IDS
+
 
 DEFAULT_LOOKBACK_HOURS = 24
 DEFAULT_SOURCE_LIMIT = 5
@@ -12,10 +14,7 @@ DEFAULT_YOUTUBE_COOLDOWN_HOURS = 6
 DEFAULT_YOUTUBE_RETRY_AFTER_HOURS = 12
 
 # Website sources are predefined in app.scrapers.sources.SOURCES.
-# Add YouTube channel IDs here when you want the pipeline to watch them.
-YOUTUBE_CHANNEL_IDS = [
-    "UCn8ujwUInbJkBhffxqAPBVQ",
-]
+# YouTube channels are predefined in app.scrapers.youtube_channels.
 
 
 @dataclass(frozen=True)

@@ -29,6 +29,7 @@ from app.database.repository import (
     update_user_preferences,
 )
 from app.profiles.user_profile import PROFILES, UserProfile, get_profile
+from app.scrapers.youtube_channels import YOUTUBE_CHANNEL_IDS
 from app.services.aggregator_surface import get_top_digests
 from app.services.auth import create_token, hash_password, parse_token, verify_password
 from app.services.email import send_email_digest
@@ -419,8 +420,15 @@ def dashboard_digests(request: DigestRequest, user=Depends(current_user)) -> dic
             }:
                 source_limit = int(os.getenv("SCRAPE_SOURCE_LIMIT", "3"))
                 max_sources = int(os.getenv("SCRAPE_MAX_SOURCES", "20"))
-                youtube_limit = int(os.getenv("SCRAPE_YOUTUBE_LIMIT", "0"))
+                youtube_limit = int(os.getenv("SCRAPE_YOUTUBE_LIMIT", "1"))
+                youtube_channel_limit = int(os.getenv("YOUTUBE_CHANNEL_LIMIT", "10"))
+                youtube_channel_ids = (
+                    YOUTUBE_CHANNEL_IDS[:youtube_channel_limit]
+                    if "youtube_video" in merged.preferred_kinds and youtube_limit > 0
+                    else []
+                )
                 scraped_items = collect_ai_news(
+                    youtube_channel_ids=youtube_channel_ids,
                     source_limit=source_limit,
                     max_sources=max_sources,
                     source_names=merged.preferred_sources,
@@ -435,6 +443,7 @@ def dashboard_digests(request: DigestRequest, user=Depends(current_user)) -> dic
                     "max_sources": max_sources,
                     "selected_sources": merged.preferred_sources,
                     "youtube_limit": youtube_limit,
+                    "youtube_channels": len(youtube_channel_ids),
                     "lookback_hours": merged.hours,
                 }
             generation_limit = min(int(os.getenv("DIGEST_GENERATION_LIMIT", "25")), 500)
