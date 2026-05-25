@@ -115,6 +115,40 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+    reviews: Mapped[list["SiteReview"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+
+class SiteReview(Base):
+    """User feedback for the AI News Aggregator website."""
+
+    __tablename__ = "site_reviews"
+    __table_args__ = (UniqueConstraint("user_id", name="uq_site_reviews_user_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    rating: Mapped[int] = mapped_column(Integer, nullable=False)
+    review_text: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+        index=True,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    user: Mapped[User] = relationship(back_populates="reviews")
 
 
 class PaymentSubscription(Base):

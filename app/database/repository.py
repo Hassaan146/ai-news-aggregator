@@ -14,6 +14,7 @@ from .models import (
     NewsItem,
     PaymentSubscription,
     PaymentTransaction,
+    SiteReview,
     SourceRun,
     User,
 )
@@ -125,6 +126,52 @@ def list_active_users(session: Session) -> list[User]:
     """List active users."""
 
     statement = select(User).where(User.is_active.is_(True)).order_by(User.created_at)
+    return list(session.execute(statement).scalars())
+
+
+def get_site_review_by_user(session: Session, user_id: int) -> SiteReview | None:
+    """Return one user's website review."""
+
+    statement = select(SiteReview).where(SiteReview.user_id == user_id)
+    return session.execute(statement).scalar_one_or_none()
+
+
+def upsert_site_review(
+    session: Session,
+    user: User,
+    rating: int,
+    review_text: str = "",
+) -> SiteReview:
+    """Create or update one user's website review."""
+
+    if rating < 1 or rating > 5:
+        raise ValueError("Rating must be between 1 and 5 stars.")
+
+    review = get_site_review_by_user(session, user.id)
+    now = datetime.now(UTC)
+    if review is None:
+        review = SiteReview(
+            user_id=user.id,
+            rating=rating,
+            review_text=review_text.strip(),
+        )
+        session.add(review)
+    else:
+        review.rating = rating
+        review.review_text = review_text.strip()
+        review.updated_at = now
+    session.flush()
+    return review
+
+
+def list_site_reviews(session: Session, limit: int = 20) -> list[SiteReview]:
+    """List recent website reviews."""
+
+    statement = (
+        select(SiteReview)
+        .order_by(SiteReview.updated_at.desc(), SiteReview.created_at.desc())
+        .limit(limit)
+    )
     return list(session.execute(statement).scalars())
 
 

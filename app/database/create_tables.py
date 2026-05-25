@@ -10,6 +10,7 @@ from .models import (  # noqa: F401
     NewsItem,
     PaymentSubscription,
     PaymentTransaction,
+    SiteReview,
     SourceRun,
     User,
 )

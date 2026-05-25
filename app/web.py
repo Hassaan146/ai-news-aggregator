@@ -19,9 +19,12 @@ from app.database.repository import (
     create_payment_subscription,
     create_payment_transaction,
     get_payment_subscription_by_checkout_session_id,
+    get_site_review_by_user,
     get_user,
     get_user_by_email,
+    list_site_reviews,
     upsert_user,
+    upsert_site_review,
     update_user_preferences,
 )
 from app.profiles.user_profile import PROFILES, UserProfile, get_profile
@@ -140,6 +143,13 @@ class AuthRequest(BaseModel):
 
 class PreferencesRequest(DigestRequest):
     """Saved preference payload for a logged-in user."""
+
+
+class ReviewRequest(BaseModel):
+    """Request to create or update a website review."""
+
+    rating: int = Field(ge=1, le=5)
+    review_text: str = Field(default="", max_length=2000)
 
 
 def current_user(
@@ -313,6 +323,36 @@ def get_preferences(user=Depends(current_user)) -> dict:
         "profile_name": user.profile_name,
         "preferences": user.preferences or default_preferences(user.profile_name),
     }
+
+
+@app.get("/api/reviews")
+def reviews(user=Depends(current_user)) -> dict:
+    """Return the current user's review and recent public review summary."""
+
+    with get_session() as session:
+        own_review = get_site_review_by_user(session, user.id)
+        recent_reviews = list_site_reviews(session, limit=12)
+        return {
+            "my_review": serialize_review(own_review),
+            "reviews": [serialize_review(review) for review in recent_reviews],
+        }
+
+
+@app.post("/api/reviews")
+def save_review(request: ReviewRequest, user=Depends(current_user)) -> dict:
+    """Create or update a logged-in user's website review."""
+
+    with get_session() as session:
+        db_user = get_user(session, user.id)
+        if db_user is None:
+            raise HTTPException(status_code=404, detail="User not found.")
+        review = upsert_site_review(
+            session=session,
+            user=db_user,
+            rating=request.rating,
+            review_text=request.review_text,
+        )
+        return {"review": serialize_review(review)}
 
 
 @app.post("/api/preferences")
@@ -536,6 +576,20 @@ def user_payload(user) -> dict:
         "plan_name": user.plan_name,
         "subscription_status": user.subscription_status,
         "preferences": user.preferences or default_preferences(user.profile_name),
+    }
+
+
+def serialize_review(review) -> dict | None:
+    """Serialize a site review for API responses."""
+
+    if review is None:
+        return None
+    return {
+        "id": review.id,
+        "rating": review.rating,
+        "review_text": review.review_text,
+        "created_at": review.created_at.isoformat() if review.created_at else None,
+        "updated_at": review.updated_at.isoformat() if review.updated_at else None,
     }
 
 

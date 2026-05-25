@@ -11,6 +11,7 @@ import {
   Newspaper,
   Settings,
   Sparkles,
+  Star,
   User,
 } from "lucide-react";
 import "./index.css";
@@ -478,6 +479,7 @@ function Dashboard({ user, token, onLogout, onUser }) {
   const [page, setPage] = useState("preferences");
   const [prefs, setPrefs] = useState(user.preferences || defaultPrefs);
   const [digests, setDigests] = useState(null);
+  const [reviews, setReviews] = useState(null);
   const [message, setMessage] = useState("");
   const [showGuide, setShowGuide] = useState(() => {
     return localStorage.getItem(`asme_guide_seen_${user.id}`) !== "1";
@@ -532,6 +534,39 @@ function Dashboard({ user, token, onLogout, onUser }) {
     }
   }
 
+  async function loadReviews() {
+    setMessage("Loading reviews...");
+    try {
+      const data = await api("/api/reviews", { token });
+      setReviews(data);
+      setPage("reviews");
+      setMessage("");
+    } catch (err) {
+      setMessage(err.message);
+    }
+  }
+
+  async function saveReview(payload) {
+    setMessage("Saving your review...");
+    try {
+      const data = await api("/api/reviews", {
+        method: "POST",
+        token,
+        body: JSON.stringify(payload),
+      });
+      setReviews((current) => ({
+        my_review: data.review,
+        reviews: [
+          data.review,
+          ...((current?.reviews || []).filter((review) => review.id !== data.review.id)),
+        ].slice(0, 12),
+      }));
+      setMessage("Thanks. Your review was saved.");
+    } catch (err) {
+      setMessage(err.message);
+    }
+  }
+
   return (
     <main className="relative min-h-screen dashboard-atmosphere text-white overflow-hidden">
       <BackgroundVideo />
@@ -545,6 +580,7 @@ function Dashboard({ user, token, onLogout, onUser }) {
             <NavButton icon={Settings} active={page === "preferences"} onClick={() => setPage("preferences")}>Priorities</NavButton>
             <NavButton icon={Newspaper} active={page === "digests"} onClick={() => setPage("digests")}>Digest maker</NavButton>
             <NavButton icon={CreditCard} active={page === "subscription"} onClick={() => setPage("subscription")}>Subscription</NavButton>
+            <NavButton icon={Star} active={page === "reviews"} onClick={loadReviews}>Reviews</NavButton>
           </nav>
           <button
             type="button"
@@ -573,6 +609,9 @@ function Dashboard({ user, token, onLogout, onUser }) {
           )}
           {page === "subscription" && (
             <Subscription user={user} onCheckout={startCheckout} />
+          )}
+          {page === "reviews" && (
+            <ReviewsPanel reviews={reviews} onSave={saveReview} />
           )}
         </section>
       </div>
@@ -834,6 +873,94 @@ function Subscription({ user, onCheckout }) {
         </div>
         <div className="mt-5 text-sm text-white/60">Account: {user.email}</div>
         <button className="mt-6 rounded-full bg-white text-black px-6 py-3 font-semibold" onClick={onCheckout} type="button">Try payment</button>
+      </div>
+    </Panel>
+  );
+}
+
+function ReviewsPanel({ reviews, onSave }) {
+  const [rating, setRating] = useState(reviews?.my_review?.rating || 5);
+  const [reviewText, setReviewText] = useState(reviews?.my_review?.review_text || "");
+
+  useEffect(() => {
+    setRating(reviews?.my_review?.rating || 5);
+    setReviewText(reviews?.my_review?.review_text || "");
+  }, [reviews]);
+
+  return (
+    <Panel
+      title="Reviews"
+      description="Tell us how the AI News Aggregator feels to use. Pick a star rating and add a custom review."
+    >
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="rounded-3xl border border-white/15 bg-white/[0.06] p-5">
+          <p className="mb-3 text-sm font-medium text-white/70">Your rating</p>
+          <div className="flex flex-wrap gap-2">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <button
+                key={star}
+                type="button"
+                onClick={() => setRating(star)}
+                className={`grid h-12 w-12 place-items-center rounded-2xl border transition-colors ${
+                  star <= rating
+                    ? "border-yellow-300/70 bg-yellow-300 text-[#07111f]"
+                    : "border-white/15 bg-white/[0.05] text-white/45 hover:text-white"
+                }`}
+                aria-label={`${star} star${star === 1 ? "" : "s"}`}
+              >
+                <Star className="h-5 w-5" fill={star <= rating ? "currentColor" : "none"} />
+              </button>
+            ))}
+          </div>
+          <label className="mt-5 grid gap-2 text-sm text-white/65">
+            Custom review
+            <textarea
+              className="min-h-[160px] rounded-3xl border border-white/15 bg-[#101b2e] p-4 text-white outline-none placeholder:text-white/35"
+              value={reviewText}
+              onChange={(event) => setReviewText(event.target.value)}
+              placeholder="What worked well? What should improve?"
+              maxLength={2000}
+            />
+          </label>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              className="rounded-full bg-white px-6 py-3 font-semibold text-[#07111f]"
+              onClick={() => onSave({ rating, review_text: reviewText })}
+              type="button"
+            >
+              Save review
+            </button>
+            <span className="text-sm text-white/45">{reviewText.length}/2000</span>
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-white/15 bg-white/[0.06] p-5">
+          <h3 className="font-semibold">Recent reviews</h3>
+          <div className="mt-4 grid gap-3">
+            {(reviews?.reviews || []).length ? (
+              reviews.reviews.map((review) => (
+                <div key={review.id} className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+                  <div className="mb-2 flex gap-1 text-yellow-300">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        className="h-4 w-4"
+                        fill={star <= review.rating ? "currentColor" : "none"}
+                      />
+                    ))}
+                  </div>
+                  <p className="text-sm leading-6 text-white/70">
+                    {review.review_text || "No written review added."}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm leading-6 text-white/55">
+                No reviews yet. Yours can be the first one.
+              </p>
+            )}
+          </div>
+        </div>
       </div>
     </Panel>
   );

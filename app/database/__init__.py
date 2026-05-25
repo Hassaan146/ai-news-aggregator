@@ -6,6 +6,7 @@ from .models import (
     NewsItem,
     PaymentSubscription,
     PaymentTransaction,
+    SiteReview,
     SourceRun,
     User,
 )
@@ -16,6 +17,7 @@ __all__ = [
     "NewsItem",
     "PaymentSubscription",
     "PaymentTransaction",
+    "SiteReview",
     "SourceRun",
     "User",
     "SessionLocal",
