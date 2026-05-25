@@ -9,6 +9,7 @@ import {
   LogOut,
   Mail,
   Newspaper,
+  Shield,
   Settings,
   Sparkles,
   Star,
@@ -550,6 +551,7 @@ function Dashboard({ user, token, onLogout, onUser }) {
   const [prefs, setPrefs] = useState(() => normalizePreferences(user.preferences));
   const [digests, setDigests] = useState(null);
   const [reviews, setReviews] = useState(null);
+  const [adminData, setAdminData] = useState(null);
   const [message, setMessage] = useState("");
   const [isDigestLoading, setIsDigestLoading] = useState(false);
   const [showGuide, setShowGuide] = useState(() => {
@@ -673,6 +675,18 @@ function Dashboard({ user, token, onLogout, onUser }) {
     }
   }
 
+  async function loadAdmin() {
+    setMessage("Loading admin dashboard...");
+    try {
+      const data = await api("/api/admin/overview", { token });
+      setAdminData(data);
+      setPage("admin");
+      setMessage("");
+    } catch (err) {
+      setMessage(err.message);
+    }
+  }
+
   return (
     <main className="relative min-h-screen dashboard-atmosphere text-white overflow-hidden">
       <BackgroundVideo />
@@ -687,6 +701,9 @@ function Dashboard({ user, token, onLogout, onUser }) {
             <NavButton icon={Newspaper} active={page === "digests"} onClick={() => setPage("digests")}>Digest maker</NavButton>
             <NavButton icon={CreditCard} active={page === "subscription"} onClick={() => setPage("subscription")}>Subscription</NavButton>
             <NavButton icon={Star} active={page === "reviews"} onClick={loadReviews}>Reviews</NavButton>
+            {user.is_admin && (
+              <NavButton icon={Shield} active={page === "admin"} onClick={loadAdmin}>Admin</NavButton>
+            )}
           </nav>
           <button
             type="button"
@@ -718,6 +735,9 @@ function Dashboard({ user, token, onLogout, onUser }) {
           )}
           {page === "reviews" && (
             <ReviewsPanel reviews={reviews} onSave={saveReview} />
+          )}
+          {page === "admin" && user.is_admin && (
+            <AdminPanel data={adminData} onRefresh={loadAdmin} />
           )}
         </section>
       </div>
@@ -1257,6 +1277,152 @@ function ReviewsPanel({ reviews, onSave }) {
   );
 }
 
+function AdminPanel({ data, onRefresh }) {
+  const summary = data?.summary || {};
+  const stats = [
+    ["Users", summary.users || 0],
+    ["Reviews", summary.reviews || 0],
+    ["Subscriptions", summary.subscriptions || 0],
+    ["Active subs", summary.active_subscriptions || 0],
+    ["Transactions", summary.transactions || 0],
+    ["Revenue", formatMoney(summary.total_amount_cents || 0, "usd")],
+    ["News items", summary.news_items || 0],
+    ["Digest rows", summary.digest_items || 0],
+  ];
+
+  return (
+    <Panel
+      title="Admin view"
+      description="Monitor users, reviews, payments, subscriptions, and database activity."
+    >
+      <div className="mb-5 flex justify-end">
+        <button
+          className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-[#07111f]"
+          onClick={onRefresh}
+          type="button"
+        >
+          Refresh
+        </button>
+      </div>
+
+      {!data ? (
+        <div className="rounded-3xl border border-white/10 bg-white/[0.05] p-5 text-white/60">
+          Click refresh to load the admin data.
+        </div>
+      ) : (
+        <div className="grid gap-5">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {stats.map(([label, value]) => (
+              <div key={label} className="rounded-3xl border border-white/10 bg-white/[0.06] p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-white/40">{label}</p>
+                <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
+              </div>
+            ))}
+          </div>
+
+          <AdminTable
+            title="Recent users"
+            rows={data.users || []}
+            columns={[
+              ["name", "Name"],
+              ["email", "Email"],
+              ["subscription_status", "Plan status"],
+              ["created_at", "Created"],
+            ]}
+          />
+          <AdminTable
+            title="Reviews"
+            rows={data.reviews || []}
+            columns={[
+              ["user_name", "User"],
+              ["user_email", "Email"],
+              ["rating", "Rating"],
+              ["review_text", "Review"],
+              ["updated_at", "Updated"],
+            ]}
+          />
+          <AdminTable
+            title="Subscriptions"
+            rows={data.subscriptions || []}
+            columns={[
+              ["user_email", "Email"],
+              ["plan_name", "Plan"],
+              ["status", "Status"],
+              ["mode", "Mode"],
+              ["amount_cents", "Amount"],
+              ["created_at", "Created"],
+            ]}
+            formatValue={(key, value, row) =>
+              key === "amount_cents" ? formatMoney(value, row.currency) : value
+            }
+          />
+          <AdminTable
+            title="Transactions"
+            rows={data.transactions || []}
+            columns={[
+              ["user_email", "Email"],
+              ["status", "Status"],
+              ["amount_cents", "Amount"],
+              ["stripe_checkout_session_id", "Checkout session"],
+              ["created_at", "Created"],
+            ]}
+            formatValue={(key, value, row) =>
+              key === "amount_cents" ? formatMoney(value, row.currency) : value
+            }
+          />
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+function AdminTable({ title, rows, columns, formatValue }) {
+  return (
+    <section className="rounded-3xl border border-white/10 bg-white/[0.045] p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 className="font-semibold text-white">{title}</h3>
+        <span className="rounded-full bg-white/[0.08] px-3 py-1 text-xs text-white/50">
+          {rows.length} rows
+        </span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[760px] text-left text-sm">
+          <thead className="text-xs uppercase tracking-[0.14em] text-white/40">
+            <tr>
+              {columns.map(([, label]) => (
+                <th className="border-b border-white/10 px-3 py-3 font-medium" key={label}>
+                  {label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="text-white/70">
+            {rows.length ? (
+              rows.map((row) => (
+                <tr key={`${title}-${row.id}`} className="border-b border-white/5">
+                  {columns.map(([key]) => (
+                    <td className="max-w-[280px] px-3 py-3 align-top" key={key}>
+                      <span className="line-clamp-3">
+                        {formatAdminValue(formatValue ? formatValue(key, row[key], row) : row[key])}
+                      </span>
+                    </td>
+                  ))}
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td className="px-3 py-5 text-white/45" colSpan={columns.length}>
+                  No records yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 function Panel({ title, description, children }) {
   return (
     <section className="liquid-glass rounded-[30px] p-6">
@@ -1418,6 +1584,26 @@ function formatReason(reason) {
     .replace("kind:", "type: ")
     .replace("ranked_by:", "ranked by ")
     .replaceAll("_", " ");
+}
+
+function formatAdminValue(value) {
+  if (value === null || value === undefined || value === "") return "-";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "string" && value.includes("T")) {
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) {
+      return date.toLocaleString();
+    }
+  }
+  return String(value);
+}
+
+function formatMoney(cents, currency = "usd") {
+  const amount = Number(cents || 0) / 100;
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: String(currency || "usd").toUpperCase(),
+  }).format(amount);
 }
 
 function formatBackendDetail(detail) {

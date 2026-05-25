@@ -101,6 +101,7 @@ Use these for the backend deployment:
 DATABASE_URL=your_neon_postgres_url
 CORS_ORIGINS=https://your-vercel-url.vercel.app
 AUTH_SECRET_KEY=your_long_random_secret
+ADMIN_EMAILS=your_admin_email@gmail.com
 
 LLM_PROVIDER=groq
 LLM_MODEL=openai/gpt-oss-120b

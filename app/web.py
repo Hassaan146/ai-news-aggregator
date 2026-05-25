@@ -12,9 +12,18 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from sqlalchemy import func, select
 
 from app.agent.email_agent import EmailAgent
 from app.database.connection import get_session
+from app.database.models import (
+    DigestItem,
+    NewsItem,
+    PaymentSubscription,
+    PaymentTransaction,
+    SiteReview,
+    User,
+)
 from app.database.repository import (
     activate_payment_subscription,
     create_payment_subscription,
@@ -366,6 +375,100 @@ def reviews(user=Depends(current_user)) -> dict:
         }
 
 
+@app.get("/api/admin/overview")
+def admin_overview(user=Depends(current_user)) -> dict:
+    """Return admin dashboard data for the configured owner emails."""
+
+    require_admin(user)
+    with get_session() as session:
+        total_users = session.scalar(select(func.count(User.id))) or 0
+        total_reviews = session.scalar(select(func.count(SiteReview.id))) or 0
+        total_subscriptions = (
+            session.scalar(select(func.count(PaymentSubscription.id))) or 0
+        )
+        total_transactions = (
+            session.scalar(select(func.count(PaymentTransaction.id))) or 0
+        )
+        total_news_items = session.scalar(select(func.count(NewsItem.id))) or 0
+        total_digest_items = session.scalar(select(func.count(DigestItem.id))) or 0
+        active_subscriptions = (
+            session.scalar(
+                select(func.count(PaymentSubscription.id)).where(
+                    PaymentSubscription.status == "active"
+                )
+            )
+            or 0
+        )
+        amount_cents = (
+            session.scalar(select(func.coalesce(func.sum(PaymentTransaction.amount_cents), 0)))
+            or 0
+        )
+
+        users = list(
+            session.execute(
+                select(User).order_by(User.created_at.desc()).limit(50)
+            ).scalars()
+        )
+        reviews_rows = list(
+            session.execute(
+                select(SiteReview, User)
+                .join(User, User.id == SiteReview.user_id)
+                .order_by(SiteReview.updated_at.desc(), SiteReview.created_at.desc())
+                .limit(50)
+            ).all()
+        )
+        subscriptions = list(
+            session.execute(
+                select(PaymentSubscription, User)
+                .join(User, User.id == PaymentSubscription.user_id)
+                .order_by(PaymentSubscription.created_at.desc())
+                .limit(50)
+            ).all()
+        )
+        transactions = list(
+            session.execute(
+                select(PaymentTransaction, User)
+                .join(User, User.id == PaymentTransaction.user_id)
+                .order_by(PaymentTransaction.created_at.desc())
+                .limit(50)
+            ).all()
+        )
+
+        return {
+            "summary": {
+                "users": total_users,
+                "reviews": total_reviews,
+                "subscriptions": total_subscriptions,
+                "active_subscriptions": active_subscriptions,
+                "transactions": total_transactions,
+                "total_amount_cents": amount_cents,
+                "news_items": total_news_items,
+                "digest_items": total_digest_items,
+            },
+            "users": [serialize_admin_user(row) for row in users],
+            "reviews": [
+                {
+                    "id": review.id,
+                    "user_name": row_user.name,
+                    "user_email": row_user.email,
+                    "rating": review.rating,
+                    "review_text": review.review_text,
+                    "created_at": isoformat(review.created_at),
+                    "updated_at": isoformat(review.updated_at),
+                }
+                for review, row_user in reviews_rows
+            ],
+            "subscriptions": [
+                serialize_admin_subscription(subscription, row_user)
+                for subscription, row_user in subscriptions
+            ],
+            "transactions": [
+                serialize_admin_transaction(transaction, row_user)
+                for transaction, row_user in transactions
+            ],
+        }
+
+
 @app.post("/api/reviews")
 def save_review(request: ReviewRequest, user=Depends(current_user)) -> dict:
     """Create or update a logged-in user's website review."""
@@ -670,7 +773,93 @@ def user_payload(user) -> dict:
         "profile_name": user.profile_name,
         "plan_name": user.plan_name,
         "subscription_status": user.subscription_status,
+        "is_admin": is_admin_user(user),
         "preferences": user.preferences or default_preferences(user.profile_name),
+    }
+
+
+def admin_emails() -> set[str]:
+    """Return configured admin emails from environment."""
+
+    configured = os.getenv("ADMIN_EMAILS", "")
+    return {
+        email.strip().lower()
+        for email in configured.split(",")
+        if email.strip()
+    }
+
+
+def is_admin_user(user) -> bool:
+    """Return whether a user is allowed to access admin views."""
+
+    return user.email.strip().lower() in admin_emails()
+
+
+def require_admin(user) -> None:
+    """Raise when the current user is not an admin."""
+
+    if not is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Admin access required.")
+
+
+def isoformat(value) -> str | None:
+    """Serialize optional datetimes."""
+
+    return value.isoformat() if value else None
+
+
+def serialize_admin_user(user) -> dict:
+    """Serialize user data for the admin dashboard."""
+
+    return {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "profile_name": user.profile_name,
+        "plan_name": user.plan_name,
+        "subscription_status": user.subscription_status,
+        "is_active": user.is_active,
+        "created_at": isoformat(user.created_at),
+        "updated_at": isoformat(user.updated_at),
+    }
+
+
+def serialize_admin_subscription(subscription, user) -> dict:
+    """Serialize subscription data for the admin dashboard."""
+
+    return {
+        "id": subscription.id,
+        "user_name": user.name,
+        "user_email": user.email,
+        "plan_name": subscription.plan_name,
+        "status": subscription.status,
+        "mode": subscription.mode,
+        "amount_cents": subscription.amount_cents,
+        "currency": subscription.currency,
+        "interval": subscription.interval,
+        "stripe_customer_id": subscription.stripe_customer_id,
+        "stripe_subscription_id": subscription.stripe_subscription_id,
+        "stripe_checkout_session_id": subscription.stripe_checkout_session_id,
+        "created_at": isoformat(subscription.created_at),
+        "updated_at": isoformat(subscription.updated_at),
+    }
+
+
+def serialize_admin_transaction(transaction, user) -> dict:
+    """Serialize transaction data for the admin dashboard."""
+
+    return {
+        "id": transaction.id,
+        "user_name": user.name,
+        "user_email": user.email,
+        "status": transaction.status,
+        "amount_cents": transaction.amount_cents,
+        "currency": transaction.currency,
+        "stripe_payment_intent_id": transaction.stripe_payment_intent_id,
+        "stripe_invoice_id": transaction.stripe_invoice_id,
+        "stripe_checkout_session_id": transaction.stripe_checkout_session_id,
+        "paid_at": isoformat(transaction.paid_at),
+        "created_at": isoformat(transaction.created_at),
     }
 
 
