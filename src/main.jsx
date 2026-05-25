@@ -108,7 +108,7 @@ function BackgroundVideo() {
         playsInline
         className="w-full h-full object-cover opacity-100"
       />
-      <div className="absolute inset-0 bg-black/55" />
+      <div className="absolute inset-0 bg-gradient-to-b from-[#0d1b32]/45 via-[#0b1020]/58 to-[#050914]/72" />
     </div>
   );
 }
@@ -548,9 +548,9 @@ function Dashboard({ user, token, onLogout, onUser }) {
   }
 
   return (
-    <main className="relative min-h-screen bg-black text-white overflow-hidden">
+    <main className="relative min-h-screen dashboard-atmosphere text-white overflow-hidden">
       <BackgroundVideo />
-      <div className="absolute inset-0 bg-black/70" />
+      <div className="absolute inset-0 bg-[#07111f]/58" />
       <div className="relative z-10 min-h-screen dashboard-grid p-4 gap-4">
         <aside className="liquid-glass rounded-[32px] p-5">
           <div className="flex items-center gap-2 mb-8">
@@ -570,7 +570,7 @@ function Dashboard({ user, token, onLogout, onUser }) {
             <LogOut className="w-4 h-4" /> Logout
           </button>
         </aside>
-        <section className="overflow-auto rounded-[32px] border border-white/10 bg-black/35 backdrop-blur-xl p-5 md:p-8">
+        <section className="overflow-auto rounded-[32px] border border-white/15 bg-[#0f1a2d]/55 backdrop-blur-xl p-5 md:p-8 shadow-2xl shadow-black/20">
           <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
             <div>
               <p className="text-white/50 text-sm">Logged in as {user.email}</p>
@@ -580,7 +580,7 @@ function Dashboard({ user, token, onLogout, onUser }) {
               {user.subscription_status || "free"} plan
             </div>
           </div>
-          {message && <div className="mb-5 rounded-2xl bg-white/5 border border-white/10 p-4 text-sm text-white/75">{message}</div>}
+        {message && <div className="mb-5 rounded-2xl bg-white/10 border border-white/15 p-4 text-sm text-white/85">{message}</div>}
           {page === "preferences" && (
             <Preferences prefs={prefs} setPrefs={setPrefs} onSave={savePrefs} onRun={loadDigests} />
           )}
@@ -635,7 +635,7 @@ function Preferences({ prefs, setPrefs, onSave, onRun }) {
             key={profile.id}
             type="button"
             onClick={() => applyProfile(profile.id)}
-            className={`rounded-3xl border p-4 text-left transition-all ${prefs.profile_name === profile.id ? "border-white/45 bg-white/15" : "border-white/10 bg-white/[0.035] hover:bg-white/[0.07]"}`}
+          className={`rounded-3xl border p-4 text-left transition-all ${prefs.profile_name === profile.id ? "border-white/55 bg-white/18" : "border-white/15 bg-white/[0.07] hover:bg-white/[0.11]"}`}
           >
             <h3 className="font-semibold">{profile.title}</h3>
             <p className="mt-2 text-sm leading-6 text-white/55">{profile.text}</p>
@@ -702,7 +702,7 @@ function ChipGroup({ title, options, values, onChange, labels = {} }) {
             key={option}
             type="button"
             onClick={() => toggle(option)}
-            className={`rounded-full border px-4 py-2 text-sm transition-colors ${values.includes(option) ? "border-white/50 bg-white text-black" : "border-white/10 bg-white/[0.035] text-white/70 hover:text-white"}`}
+              className={`rounded-full border px-4 py-2 text-sm transition-colors ${values.includes(option) ? "border-white/50 bg-white text-black" : "border-white/15 bg-white/[0.08] text-white/75 hover:text-white"}`}
           >
             {labels[option] || option}
           </button>
@@ -780,7 +780,7 @@ function Field({ label, value, onChange, type = "text", icon: Icon }) {
   return (
     <label className="grid gap-2 text-sm text-white/60">
       {label}
-      <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-black/30 px-3">
+      <div className="flex items-center gap-2 rounded-2xl border border-white/15 bg-white/[0.07] px-3">
         {Icon && <Icon className="w-4 h-4 text-white/40" />}
         <input
           className="w-full bg-transparent py-3 outline-none text-white"
@@ -798,7 +798,7 @@ function TextArea({ label, value, onChange }) {
     <label className="grid gap-2 text-sm text-white/60">
       {label}
       <textarea
-        className="min-h-[96px] rounded-2xl border border-white/10 bg-black/30 p-3 outline-none text-white"
+        className="min-h-[96px] rounded-2xl border border-white/15 bg-white/[0.07] p-3 outline-none text-white"
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
@@ -811,7 +811,7 @@ function Select({ label, value, onChange, options }) {
     <label className="grid gap-2 text-sm text-white/60">
       {label}
       <select
-        className="rounded-2xl border border-white/10 bg-black/80 p-3 outline-none text-white"
+        className="rounded-2xl border border-white/15 bg-[#132039] p-3 outline-none text-white"
         value={value}
         onChange={(event) => onChange(event.target.value)}
       >
@@ -823,7 +823,7 @@ function Select({ label, value, onChange, options }) {
 
 function Toggle({ label, checked, onChange }) {
   return (
-    <label className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-white/70">
+    <label className="flex items-center justify-between rounded-2xl border border-white/15 bg-white/[0.07] p-4 text-sm text-white/80">
       {label}
       <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
     </label>
@@ -835,7 +835,7 @@ function NavButton({ icon: Icon, active, onClick, children }) {
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-left ${active ? "bg-white text-black" : "text-white/65 hover:bg-white/5"}`}
+      className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-left ${active ? "bg-white text-black" : "text-white/75 hover:bg-white/10"}`}
     >
       <Icon className="w-4 h-4" /> {children}
     </button>
@@ -882,7 +882,7 @@ function App() {
   }
 
   return (
-    <main className="relative bg-black h-screen w-screen flex flex-col overflow-hidden selection:bg-white selection:text-black shrink-0">
+    <main className="relative app-atmosphere h-screen w-screen flex flex-col overflow-hidden selection:bg-white selection:text-black shrink-0">
       <BackgroundVideo />
       <Navbar
         user={user}

@@ -7,7 +7,7 @@
 }
 
 :root {
-  --background: #000000;
+  --background: #07111f;
   --foreground: #ffffff;
 }
 
@@ -24,13 +24,29 @@ body {
   letter-spacing: -0.01em;
 }
 
+.app-atmosphere {
+  background:
+    radial-gradient(circle at 20% 10%, rgba(68, 115, 255, 0.34), transparent 30%),
+    radial-gradient(circle at 80% 20%, rgba(39, 180, 180, 0.18), transparent 26%),
+    linear-gradient(135deg, #0b1220 0%, #111827 44%, #06111f 100%);
+}
+
+.dashboard-atmosphere {
+  background:
+    radial-gradient(circle at 12% 6%, rgba(62, 112, 255, 0.36), transparent 28%),
+    radial-gradient(circle at 88% 18%, rgba(45, 212, 191, 0.16), transparent 30%),
+    linear-gradient(145deg, #0d1728 0%, #121826 45%, #07111f 100%);
+}
+
 .liquid-glass {
-  background: rgba(255, 255, 255, 0.01);
+  background: rgba(255, 255, 255, 0.055);
   background-blend-mode: luminosity;
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   border: none;
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.12),
+    0 24px 80px rgba(0, 0, 0, 0.22);
   position: relative;
   overflow: hidden;
 }
@@ -59,7 +75,7 @@ body {
 }
 
 .glass-pill {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(16px) saturate(180%);
   border-radius: 9999px;
   box-shadow: none !important;
