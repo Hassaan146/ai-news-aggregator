@@ -17,6 +17,8 @@ from .storage import save_processed_items
 def collect_ai_news(
     youtube_channel_ids: list[str] | tuple[str, ...] = (),
     source_limit: int = 5,
+    max_sources: int | None = None,
+    source_names: list[str] | tuple[str, ...] | None = None,
     youtube_limit: int = 5,
     youtube_cooldown_hours: int = 6,
     youtube_retry_after_hours: int = 12,
@@ -29,7 +31,11 @@ def collect_ai_news(
     items: list[ProcessedItem] = []
 
     if source_limit > 0:
-        articles = scrape_all_sources(limit_per_source=source_limit)
+        articles = scrape_all_sources(
+            limit_per_source=source_limit,
+            max_sources=max_sources,
+            source_names=source_names,
+        )
         items.extend(process_articles(articles))
 
     if youtube_channel_ids:
@@ -101,6 +107,8 @@ def collect_youtube_digest(
 def collect_ai_digest(
     youtube_channel_ids: list[str] | tuple[str, ...] = (),
     source_limit: int = 5,
+    max_sources: int | None = None,
+    source_names: list[str] | tuple[str, ...] | None = None,
     youtube_limit: int = 5,
     youtube_cooldown_hours: int = 6,
     youtube_retry_after_hours: int = 12,
@@ -113,6 +121,8 @@ def collect_ai_digest(
     items = collect_ai_news(
         youtube_channel_ids=youtube_channel_ids,
         source_limit=source_limit,
+        max_sources=max_sources,
+        source_names=source_names,
         youtube_limit=youtube_limit,
         youtube_cooldown_hours=youtube_cooldown_hours,
         youtube_retry_after_hours=youtube_retry_after_hours,

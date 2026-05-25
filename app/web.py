@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -31,6 +32,8 @@ from app.profiles.user_profile import PROFILES, UserProfile, get_profile
 from app.services.aggregator_surface import get_top_digests
 from app.services.auth import create_token, hash_password, parse_token, verify_password
 from app.services.email import send_email_digest
+from app.services.llm_status import classify_llm_error, llm_status_message
+from app.services.news_surface import collect_ai_news
 from app.services.payments import (
     construct_webhook_event,
     create_checkout_session,
@@ -92,10 +95,33 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     return JSONResponse(status_code=500, content={"detail": detail})
 
 
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(
+    request: Request,
+    exc: RequestValidationError,
+) -> JSONResponse:
+    """Return readable validation errors for browser clients."""
+
+    messages = []
+    for error in exc.errors():
+        location = ".".join(str(part) for part in error.get("loc", []) if part != "body")
+        message = error.get("msg", "Invalid value.")
+        messages.append(f"{location}: {message}" if location else message)
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": {
+                "message": "Please fix the highlighted request values before trying again.",
+                "errors": messages,
+            }
+        },
+    )
+
+
 class DigestRequest(BaseModel):
     """Request for personalized digest results."""
 
-    hours: int = Field(default=24, ge=1, le=168)
+    hours: int = Field(default=24, ge=1, le=720)
     top_n: int = Field(default=10, ge=1, le=50)
     profile_name: str | None = "default_ai_reader"
     use_llm: bool = True
@@ -284,6 +310,7 @@ def digests(request: DigestRequest) -> dict:
         response = get_top_digests(
             hours=request.hours,
             top_n=request.top_n,
+            limit=max(request.top_n, 100),
             profile=build_profile(request),
             use_llm=request.use_llm,
         )
@@ -383,9 +410,36 @@ def dashboard_digests(request: DigestRequest, user=Depends(current_user)) -> dic
     merged = merge_saved_preferences(request, user.preferences or {})
     try:
         digest_generation = None
+        scrape_result = None
         if merged.generate_missing_digests:
+            if os.getenv("SCRAPE_ON_DIGEST", "true").strip().lower() in {
+                "1",
+                "true",
+                "yes",
+            }:
+                source_limit = int(os.getenv("SCRAPE_SOURCE_LIMIT", "3"))
+                max_sources = int(os.getenv("SCRAPE_MAX_SOURCES", "20"))
+                youtube_limit = int(os.getenv("SCRAPE_YOUTUBE_LIMIT", "0"))
+                scraped_items = collect_ai_news(
+                    source_limit=source_limit,
+                    max_sources=max_sources,
+                    source_names=merged.preferred_sources,
+                    youtube_limit=youtube_limit,
+                    lookback_hours=merged.hours,
+                    curate=True,
+                    store=True,
+                )
+                scrape_result = {
+                    "stored_or_updated": len(scraped_items),
+                    "source_limit": source_limit,
+                    "max_sources": max_sources,
+                    "selected_sources": merged.preferred_sources,
+                    "youtube_limit": youtube_limit,
+                    "lookback_hours": merged.hours,
+                }
+            generation_limit = min(int(os.getenv("DIGEST_GENERATION_LIMIT", "25")), 500)
             digest_generation = process_digest_items(
-                limit=int(os.getenv("DIGEST_GENERATION_LIMIT", "10")),
+                limit=generation_limit,
                 lookback_hours=merged.hours,
                 delay_seconds=float(os.getenv("DIGEST_GENERATION_DELAY_SECONDS", "8")),
                 allow_fallback=os.getenv("DIGEST_ALLOW_FALLBACK", "true")
@@ -396,17 +450,33 @@ def dashboard_digests(request: DigestRequest, user=Depends(current_user)) -> dic
         response = get_top_digests(
             hours=merged.hours,
             top_n=merged.top_n,
+            limit=max(merged.top_n, 100),
             profile=build_profile(merged),
             use_llm=merged.use_llm,
         )
         payload = response.model_dump(mode="json")
+        if scrape_result is not None:
+            payload["scrape_result"] = scrape_result
         if digest_generation is not None:
             payload["digest_generation"] = {
                 "processed": digest_generation.processed,
                 "created_or_updated": digest_generation.created_or_updated,
                 "failed": digest_generation.failed,
                 "stopped_reason": digest_generation.stopped_reason,
+                "llm_status": digest_generation.llm_status,
             }
+        llm_status = (
+            digest_generation.llm_status
+            if digest_generation is not None
+            else classify_llm_error(response.fallback_reason)
+        )
+        if response.fallback_reason and llm_status is None:
+            llm_status = classify_llm_error(response.fallback_reason)
+        payload["llm_status"] = {
+            "status": llm_status or ("ok" if response.ranking_method == "llm" else None),
+            "message": llm_status_message(llm_status),
+            "fallback_reason": response.fallback_reason,
+        }
         return payload
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

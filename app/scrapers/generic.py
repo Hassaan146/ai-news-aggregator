@@ -21,14 +21,25 @@ HEADERS = {
 }
 
 
-def scrape_all_sources(limit_per_source: int = 10) -> list[Article]:
+def scrape_all_sources(
+    limit_per_source: int = 10,
+    max_sources: int | None = None,
+    source_names: list[str] | tuple[str, ...] | None = None,
+) -> list[Article]:
     """Scrape every configured AI news source."""
 
     if limit_per_source <= 0:
         return []
 
     articles: list[Article] = []
-    for source in SOURCES:
+    selected_sources = SOURCES
+    if source_names:
+        allowed_names = {name.strip().lower() for name in source_names if name.strip()}
+        selected_sources = tuple(
+            source for source in selected_sources if source.name.lower() in allowed_names
+        )
+    selected_sources = selected_sources[:max_sources] if max_sources else selected_sources
+    for source in selected_sources:
         try:
             articles.extend(scrape_source(source, limit=limit_per_source))
         except Exception as exc:
@@ -139,6 +150,7 @@ def is_probable_article(title: str, url: str, base_url: str) -> bool:
     nav_titles = {
         "about", "advertise", "careers", "contact", "home", "login", "privacy",
         "subscribe", "terms", "topics", "events", "newsletter", "podcasts",
+        "skip to main content",
     }
     if title.strip().lower() in nav_titles:
         return False

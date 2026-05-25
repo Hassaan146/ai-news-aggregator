@@ -14,6 +14,7 @@ from app.database.repository import (
     list_news_items_without_digest,
     upsert_digest_item,
 )
+from app.services.llm_status import classify_http_error, classify_llm_error
 
 
 @dataclass(frozen=True)
@@ -24,6 +25,7 @@ class DigestProcessingResult:
     created_or_updated: int
     failed: int = 0
     stopped_reason: str | None = None
+    llm_status: str | None = None
 
 
 def process_digest_items(
@@ -47,6 +49,7 @@ def process_digest_items(
     created_or_updated = 0
     failed = 0
     stopped_reason: str | None = None
+    llm_status: str | None = classify_llm_error(str(agent_error)) if agent_error else None
 
     with get_session() as session:
         news_items = list_news_items_without_digest(
@@ -77,8 +80,10 @@ def process_digest_items(
                 failed += 1
                 if exc.response is not None and exc.response.status_code == 429:
                     stopped_reason = "rate_limited"
+                    llm_status = "rate_limited"
                     break
                 if allow_fallback:
+                    llm_status = llm_status or classify_http_error(exc)
                     create_fallback_digest(session, news_item, model, str(exc))
                     session.commit()
                     created_or_updated += 1
@@ -90,6 +95,7 @@ def process_digest_items(
                 session.rollback()
                 failed += 1
                 if allow_fallback:
+                    llm_status = llm_status or classify_llm_error(str(exc))
                     create_fallback_digest(session, news_item, model, str(exc))
                     session.commit()
                     created_or_updated += 1
@@ -103,6 +109,7 @@ def process_digest_items(
         created_or_updated=created_or_updated,
         failed=failed,
         stopped_reason=stopped_reason,
+        llm_status=llm_status,
     )
 
 

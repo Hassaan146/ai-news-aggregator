@@ -31,6 +31,17 @@ const defaultPrefs = {
   excluded_keywords: [],
 };
 
+const validationLimits = {
+  minHours: 1,
+  maxHours: 720,
+  minTopDigests: 1,
+  maxTopDigests: 50,
+  maxSources: 8,
+  maxKeywords: 20,
+  maxKeywordLength: 40,
+  maxReviewLength: 2000,
+};
+
 const profileOptions = [
   {
     id: "default_ai_reader",
@@ -373,8 +384,16 @@ function AuthModal({ mode, initialEmail, onClose, onAuth }) {
       setError("Please enter your email.");
       return;
     }
+    if (!isValidEmail(email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
     if (!password) {
       setError("Please enter your password.");
+      return;
+    }
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
       return;
     }
 
@@ -482,6 +501,7 @@ function Dashboard({ user, token, onLogout, onUser }) {
   const [digests, setDigests] = useState(null);
   const [reviews, setReviews] = useState(null);
   const [message, setMessage] = useState("");
+  const [isDigestLoading, setIsDigestLoading] = useState(false);
   const [showGuide, setShowGuide] = useState(() => {
     return localStorage.getItem(`asme_guide_seen_${user.id}`) !== "1";
   });
@@ -492,6 +512,11 @@ function Dashboard({ user, token, onLogout, onUser }) {
   }
 
   async function savePrefs() {
+    const validationError = validateDigestPreferences(prefs);
+    if (validationError) {
+      setMessage(validationError);
+      return;
+    }
     setMessage("Saving preferences...");
     try {
       const data = await api("/api/preferences", {
@@ -507,7 +532,13 @@ function Dashboard({ user, token, onLogout, onUser }) {
   }
 
   async function loadDigests() {
-    setMessage("Loading ranked digests...");
+    const validationError = validateDigestPreferences(prefs);
+    if (validationError) {
+      setMessage(validationError);
+      return;
+    }
+    setIsDigestLoading(true);
+    setMessage("Creating your digest. The app will map your priorities, fetch matching sources into the database, generate AI digest rows, then rank them. Please wait around 90-120 seconds.");
     try {
       const data = await api("/api/dashboard/digests", {
         method: "POST",
@@ -517,16 +548,31 @@ function Dashboard({ user, token, onLogout, onUser }) {
       setDigests(data);
       setPage("digests");
       const generation = data.digest_generation;
+      const scrape = data.scrape_result;
       const generationText = generation
         ? ` Digests processed: ${generation.processed}, saved: ${generation.created_or_updated}${generation.stopped_reason ? `, stopped: ${generation.stopped_reason}` : ""}.`
         : "";
-      setMessage(`${data.ranking_method.toUpperCase()} ranking returned ${data.total_items} items.${generationText}`);
+      const scrapeText = scrape
+        ? ` Sources checked/stored: ${scrape.stored_or_updated}.`
+        : "";
+      const llmText = data.llm_status?.message ? ` ${data.llm_status.message}` : "";
+      const emptyText = data.total_items === 0
+        ? " No digest rows were available after scraping and generation. Try a larger time window, then check backend logs if this keeps happening."
+        : "";
+      setMessage(`${data.ranking_method.toUpperCase()} ranking returned ${data.total_items} items.${scrapeText}${generationText}${llmText}${emptyText}`);
     } catch (err) {
       setMessage(err.message);
+    } finally {
+      setIsDigestLoading(false);
     }
   }
 
   async function startCheckout() {
+    const accountError = validateAccountIdentity(user);
+    if (accountError) {
+      setMessage(accountError);
+      return;
+    }
     setMessage("Opening Stripe Checkout...");
     try {
       const data = await api("/api/payments/checkout", {
@@ -552,6 +598,11 @@ function Dashboard({ user, token, onLogout, onUser }) {
   }
 
   async function saveReview(payload) {
+    const validationError = validateReviewPayload(payload);
+    if (validationError) {
+      setMessage(validationError);
+      return;
+    }
     setMessage("Saving your review...");
     try {
       const data = await api("/api/reviews", {
@@ -607,10 +658,10 @@ function Dashboard({ user, token, onLogout, onUser }) {
           </div>
         {message && <div className="mb-5 rounded-2xl bg-white/10 border border-white/15 p-4 text-sm text-white/85">{message}</div>}
           {page === "preferences" && (
-            <Preferences prefs={prefs} setPrefs={setPrefs} onSave={savePrefs} onRun={loadDigests} />
+            <Preferences prefs={prefs} setPrefs={setPrefs} onSave={savePrefs} onRun={loadDigests} onInvalid={setMessage} isDigestLoading={isDigestLoading} />
           )}
           {page === "digests" && (
-            <DigestMaker prefs={prefs} setPrefs={setPrefs} onRun={loadDigests} digests={digests} />
+            <DigestMaker prefs={prefs} setPrefs={setPrefs} onRun={loadDigests} digests={digests} isDigestLoading={isDigestLoading} />
           )}
           {page === "subscription" && (
             <Subscription user={user} onCheckout={startCheckout} />
@@ -713,7 +764,7 @@ function GuideModal({ onClose, onStart }) {
   );
 }
 
-function Preferences({ prefs, setPrefs, onSave, onRun }) {
+function Preferences({ prefs, setPrefs, onSave, onRun, onInvalid, isDigestLoading }) {
   const [customKeyword, setCustomKeyword] = useState("");
 
   function applyProfile(profileName) {
@@ -740,7 +791,16 @@ function Preferences({ prefs, setPrefs, onSave, onRun }) {
   function addCustomKeyword() {
     const value = customKeyword.trim().toLowerCase();
     if (!value) return;
-    setPrefs({ ...prefs, keywords: Array.from(new Set([...(prefs.keywords || []), value])) });
+    if (value.length > validationLimits.maxKeywordLength) {
+      onInvalid(`Custom topics must be ${validationLimits.maxKeywordLength} characters or fewer.`);
+      return;
+    }
+    const existingKeywords = prefs.keywords || [];
+    if (!existingKeywords.includes(value) && existingKeywords.length >= validationLimits.maxKeywords) {
+      onInvalid(`You can add up to ${validationLimits.maxKeywords} topics. Remove one before adding another.`);
+      return;
+    }
+    setPrefs({ ...prefs, keywords: Array.from(new Set([...existingKeywords, value])) });
     setCustomKeyword("");
   }
 
@@ -768,6 +828,7 @@ function Preferences({ prefs, setPrefs, onSave, onRun }) {
           tone="cyan"
           values={prefs.preferred_sources || []}
           options={sourceOptions}
+          maxSelected={validationLimits.maxSources}
           onChange={(preferred_sources) => setPrefs({ ...prefs, preferred_sources })}
         />
 
@@ -779,6 +840,7 @@ function Preferences({ prefs, setPrefs, onSave, onRun }) {
             tone="violet"
             values={prefs.keywords || []}
             options={keywordOptions}
+            maxSelected={validationLimits.maxKeywords}
             onChange={(keywords) => setPrefs({ ...prefs, keywords })}
             embedded
           />
@@ -815,7 +877,14 @@ function Preferences({ prefs, setPrefs, onSave, onRun }) {
       </div>
       <div className="flex gap-3 mt-6">
         <button className="rounded-full bg-white text-black px-5 py-3 font-semibold" onClick={onSave} type="button">Save priorities</button>
-        <button className="rounded-full border border-white/15 px-5 py-3 font-semibold" onClick={onRun} type="button">Generate digest</button>
+        <button
+          className={`rounded-full border border-white/15 px-5 py-3 font-semibold ${isDigestLoading ? "cursor-wait opacity-60" : ""}`}
+          disabled={isDigestLoading}
+          onClick={onRun}
+          type="button"
+        >
+          {isDigestLoading ? "Generating..." : "Generate digest"}
+        </button>
       </div>
     </Panel>
   );
@@ -829,6 +898,7 @@ function PreferenceTable({
   options,
   values,
   onChange,
+  maxSelected,
   labels = {},
   embedded = false,
 }) {
@@ -854,6 +924,9 @@ function PreferenceTable({
   }[tone];
 
   function toggle(option) {
+    if (!values.includes(option) && maxSelected && values.length >= maxSelected) {
+      return;
+    }
     const next = values.includes(option)
       ? values.filter((item) => item !== option)
       : [...values, option];
@@ -871,7 +944,7 @@ function PreferenceTable({
           <p className="mt-2 text-sm leading-6 text-white/55">{description}</p>
         </div>
         <div className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${tones.badge}`}>
-          {values.length}/{options.length}
+          {values.length}/{maxSelected || options.length}
         </div>
       </div>
 
@@ -884,7 +957,9 @@ function PreferenceTable({
             className={`flex items-center justify-between gap-3 rounded-2xl border px-3 py-3 text-left text-sm transition-colors ${
               values.includes(option)
                 ? tones.selected
-                : "border-white/10 bg-black/20 text-white/72 hover:border-white/25 hover:text-white"
+                : maxSelected && values.length >= maxSelected
+                  ? "cursor-not-allowed border-white/10 bg-black/10 text-white/30"
+                  : "border-white/10 bg-black/20 text-white/72 hover:border-white/25 hover:text-white"
             }`}
           >
             <span className="font-medium">{labels[option] || option}</span>
@@ -898,18 +973,32 @@ function PreferenceTable({
   );
 }
 
-function DigestMaker({ prefs, setPrefs, onRun, digests }) {
+function DigestMaker({ prefs, setPrefs, onRun, digests, isDigestLoading }) {
   return (
     <div className="grid gap-5">
       <Panel title="Digest making" description="Generate missing digest rows, save them to the database, then rank the saved digests for this user.">
         <div className="grid md:grid-cols-3 gap-4">
-          <Field label="Last hours" type="number" value={prefs.hours} onChange={(hours) => setPrefs({ ...prefs, hours: Number(hours) })} />
-          <Field label="Top articles" type="number" value={prefs.top_n} onChange={(top_n) => setPrefs({ ...prefs, top_n: Number(top_n) })} />
+          <Field
+            label="Last hours"
+            type="number"
+            min={validationLimits.minHours}
+            max={validationLimits.maxHours}
+            value={prefs.hours}
+            onChange={(hours) => setPrefs({ ...prefs, hours: Number(hours) })}
+          />
+          <Field
+            label="Top digests"
+            type="number"
+            min={validationLimits.minTopDigests}
+            max={validationLimits.maxTopDigests}
+            value={prefs.top_n}
+            onChange={(top_n) => setPrefs({ ...prefs, top_n: Number(top_n) })}
+          />
           <Toggle label="Use LLM ranking" checked={prefs.use_llm} onChange={(use_llm) => setPrefs({ ...prefs, use_llm })} />
         </div>
         <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
           <div className="rounded-3xl border border-white/15 bg-white/[0.06] p-4 text-sm leading-6 text-white/65">
-            Digest and ranking agents use the secure backend Gemini key configured in Render.
+            Digest and ranking agents use the secure backend AI key configured in Render.
           </div>
           <Toggle
             label="Create missing digests first"
@@ -921,7 +1010,14 @@ function DigestMaker({ prefs, setPrefs, onRun, digests }) {
           If the LLM fails or hits a limit, the backend saves deterministic fallback digests
           so the dashboard can still show items.
         </p>
-        <button className="mt-5 rounded-full bg-white text-black px-5 py-3 font-semibold" onClick={onRun} type="button">Make and rank digests</button>
+        <button
+          className={`mt-5 rounded-full bg-white text-black px-5 py-3 font-semibold ${isDigestLoading ? "cursor-wait opacity-60" : ""}`}
+          disabled={isDigestLoading}
+          onClick={onRun}
+          type="button"
+        >
+          {isDigestLoading ? "Working for up to 2 minutes..." : "Make and rank digests"}
+        </button>
       </Panel>
       {digests && (
         <div className="grid gap-3">
@@ -1069,7 +1165,7 @@ function Panel({ title, description, children }) {
   );
 }
 
-function Field({ label, value, onChange, type = "text", icon: Icon }) {
+function Field({ label, value, onChange, type = "text", icon: Icon, min, max, maxLength }) {
   return (
     <label className="grid gap-2 text-sm text-white/60">
       {label}
@@ -1078,6 +1174,9 @@ function Field({ label, value, onChange, type = "text", icon: Icon }) {
         <input
           className="w-full bg-transparent py-3 outline-none text-white"
           type={type}
+          min={min}
+          max={max}
+          maxLength={maxLength}
           value={value}
           onChange={(event) => onChange(event.target.value)}
         />
@@ -1121,6 +1220,78 @@ function Toggle({ label, checked, onChange }) {
       <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
     </label>
   );
+}
+
+function validateDigestPreferences(prefs) {
+  const hours = Number(prefs.hours);
+  const topDigests = Number(prefs.top_n);
+  const sources = prefs.preferred_sources || [];
+  const kinds = prefs.preferred_kinds || [];
+  const keywords = prefs.keywords || [];
+
+  if (!Number.isInteger(hours) || hours < validationLimits.minHours || hours > validationLimits.maxHours) {
+    return `Please choose a lookback window between ${validationLimits.minHours} and ${validationLimits.maxHours} hours.`;
+  }
+  if (!Number.isInteger(topDigests) || topDigests < validationLimits.minTopDigests || topDigests > validationLimits.maxTopDigests) {
+    return `You can request between ${validationLimits.minTopDigests} and ${validationLimits.maxTopDigests} digests at once.`;
+  }
+  if (!sources.length) {
+    return "Please select at least one source feed before generating a digest.";
+  }
+  if (sources.length > validationLimits.maxSources) {
+    return `Please select no more than ${validationLimits.maxSources} source feeds.`;
+  }
+  if (!kinds.length) {
+    return "Please select at least one content type.";
+  }
+  if (!keywords.length) {
+    return "Please select or add at least one topic keyword.";
+  }
+  if (keywords.length > validationLimits.maxKeywords) {
+    return `Please keep topic keywords to ${validationLimits.maxKeywords} or fewer.`;
+  }
+  if (keywords.some((keyword) => String(keyword).trim().length > validationLimits.maxKeywordLength)) {
+    return `Each topic keyword must be ${validationLimits.maxKeywordLength} characters or fewer.`;
+  }
+  return "";
+}
+
+function validateAccountIdentity(user) {
+  if (!user?.name?.trim()) return "Your account name is missing. Please log out and register again.";
+  if (!isValidEmail(user.email)) return "Your account email is invalid. Please use a valid email before checkout.";
+  return "";
+}
+
+function validateReviewPayload(payload) {
+  const rating = Number(payload.rating);
+  const text = payload.review_text || "";
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    return "Please choose a star rating between 1 and 5.";
+  }
+  if (text.length > validationLimits.maxReviewLength) {
+    return `Your review must be ${validationLimits.maxReviewLength} characters or fewer.`;
+  }
+  return "";
+}
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
+}
+
+function formatBackendDetail(detail) {
+  if (!detail) return "";
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (typeof item === "string") return item;
+        const location = Array.isArray(item.loc) ? item.loc.join(".") : item.loc;
+        const message = item.msg || item.message || JSON.stringify(item);
+        return location ? `${location}: ${message}` : message;
+      })
+      .join("\n");
+  }
+  return JSON.stringify(detail, null, 2);
 }
 
 function NavButton({ icon: Icon, active, onClick, children }) {
@@ -1234,11 +1405,12 @@ async function api(path, options = {}) {
   }
 
   if (!response.ok) {
+    const backendDetail = formatBackendDetail(data.detail);
     throw new Error(
       [
         `Backend returned HTTP ${response.status} ${response.statusText}.`,
         `Request: ${options.method || "GET"} ${url || path}`,
-        data.detail ? `Backend detail: ${data.detail}` : null,
+        backendDetail ? `Backend detail:\n${backendDetail}` : null,
         responseText && !data.detail ? `Response body: ${responseText.slice(0, 600)}` : null,
       ]
         .filter(Boolean)
