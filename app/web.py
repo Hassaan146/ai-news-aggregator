@@ -35,6 +35,12 @@ from app.services.payments import (
 )
 
 WEB_DIR = Path(__file__).parent / "web_static"
+DEFAULT_CORS_ORIGIN_REGEX = (
+    r"^https://.*\.vercel\.app$|"
+    r"^https://.*\.onrender\.com$|"
+    r"^http://(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|"
+    r"172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+):(5173|4173|8000)$"
+)
 
 app = FastAPI(title="AI News Aggregator GUI")
 app.add_middleware(
@@ -47,10 +53,7 @@ app.add_middleware(
         ).split(",")
         if origin.strip()
     ],
-    allow_origin_regex=os.getenv(
-        "CORS_ORIGIN_REGEX",
-        r"^(https://[a-z0-9-]+\.vercel\.app|http://(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+):(5173|4173))$",
-    ),
+    allow_origin_regex=DEFAULT_CORS_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -148,6 +151,23 @@ def health(request: Request) -> dict:
         "service": "ai-news-aggregator-api",
         "origin": request.headers.get("origin"),
         "cors_origins_configured": bool(os.getenv("CORS_ORIGINS")),
+    }
+
+
+@app.get("/api/debug/cors")
+def debug_cors(request: Request) -> dict:
+    """Return safe CORS diagnostics for deployed frontend debugging."""
+
+    return {
+        "ok": True,
+        "origin": request.headers.get("origin"),
+        "host": request.headers.get("host"),
+        "cors_origins": [
+            origin.strip()
+            for origin in os.getenv("CORS_ORIGINS", "").split(",")
+            if origin.strip()
+        ],
+        "cors_origin_regex": DEFAULT_CORS_ORIGIN_REGEX,
     }
 
 

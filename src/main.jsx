@@ -1021,6 +1021,9 @@ async function api(path, options = {}) {
         "Network request failed before the backend returned a response.",
         `Request: ${options.method || "GET"} ${url || path}`,
         `Configured API base: ${apiBase || "(empty, using same domain)"}`,
+        `Frontend origin: ${window.location.origin}`,
+        `Backend health URL: ${(apiBase || window.location.origin).replace(/\/$/, "")}/api/health`,
+        `CORS debug URL: ${(apiBase || window.location.origin).replace(/\/$/, "")}/api/debug/cors`,
         `Browser error: ${err.message}`,
         "Likely causes: wrong VITE_API_BASE_URL, backend is down/asleep, HTTPS/CORS is blocked, or Render CORS_ORIGINS does not include this exact frontend URL.",
       ].join("\n")
