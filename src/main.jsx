@@ -1453,20 +1453,34 @@ function App() {
   const [infoModal, setInfoModal] = useState(null);
   const [initialEmail, setInitialEmail] = useState("");
   const [token, setToken] = useState(() => localStorage.getItem("asme_token") || "");
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("asme_user") || "null");
+    } catch {
+      return null;
+    }
+  });
 
   useEffect(() => {
     if (!token) return;
     api("/api/auth/me", { token })
-      .then(setUser)
-      .catch(() => {
-        localStorage.removeItem("asme_token");
-        setToken("");
+      .then((currentUser) => {
+        localStorage.setItem("asme_user", JSON.stringify(currentUser));
+        setUser(currentUser);
+      })
+      .catch((err) => {
+        if (err.status === 401) {
+          localStorage.removeItem("asme_token");
+          localStorage.removeItem("asme_user");
+          setToken("");
+          setUser(null);
+        }
       });
   }, [token]);
 
   function handleAuth(data) {
     localStorage.setItem("asme_token", data.token);
+    localStorage.setItem("asme_user", JSON.stringify(data.user));
     setToken(data.token);
     setUser(data.user);
     setAuthMode(null);
@@ -1479,6 +1493,7 @@ function App() {
 
   function logout() {
     localStorage.removeItem("asme_token");
+    localStorage.removeItem("asme_user");
     setToken("");
     setUser(null);
   }
@@ -1548,7 +1563,7 @@ async function api(path, options = {}) {
 
   if (!response.ok) {
     const backendDetail = formatBackendDetail(data.detail);
-    throw new Error(
+    const error = new Error(
       [
         `Backend returned HTTP ${response.status} ${response.statusText}.`,
         `Request: ${options.method || "GET"} ${url || path}`,
@@ -1558,6 +1573,9 @@ async function api(path, options = {}) {
         .filter(Boolean)
         .join("\n")
     );
+    error.status = response.status;
+    error.data = data;
+    throw error;
   }
   return data;
 }
