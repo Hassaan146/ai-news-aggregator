@@ -474,7 +474,11 @@ function AuthModal({ mode, initialEmail, onClose, onAuth }) {
             onChange={(password) => setForm({ ...form, password })}
           />
         </div>
-        {error && <p className="mt-4 text-sm text-red-300">{error}</p>}
+        {error && (
+          <pre className="mt-4 max-h-44 overflow-auto whitespace-pre-wrap rounded-2xl border border-red-300/20 bg-red-950/30 p-3 text-xs leading-5 text-red-100">
+            {error}
+          </pre>
+        )}
         <button
           className="mt-6 w-full rounded-full bg-white text-black py-3 font-semibold"
           type="submit"
@@ -1008,9 +1012,41 @@ async function api(path, options = {}) {
   if (options.token) headers.Authorization = `Bearer ${options.token}`;
   const apiBase = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
   const url = path.startsWith("http") ? path : `${apiBase}${path}`;
-  const response = await fetch(url, { ...options, headers });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.detail || "Request failed");
+  let response;
+  try {
+    response = await fetch(url, { ...options, headers });
+  } catch (err) {
+    throw new Error(
+      [
+        "Network request failed before the backend returned a response.",
+        `Request: ${options.method || "GET"} ${url || path}`,
+        `Configured API base: ${apiBase || "(empty, using same domain)"}`,
+        `Browser error: ${err.message}`,
+        "Likely causes: wrong VITE_API_BASE_URL, backend is down/asleep, HTTPS/CORS is blocked, or Render CORS_ORIGINS does not include this exact frontend URL.",
+      ].join("\n")
+    );
+  }
+
+  const responseText = await response.text();
+  let data = {};
+  try {
+    data = responseText ? JSON.parse(responseText) : {};
+  } catch {
+    data = { detail: responseText };
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      [
+        `Backend returned HTTP ${response.status} ${response.statusText}.`,
+        `Request: ${options.method || "GET"} ${url || path}`,
+        data.detail ? `Backend detail: ${data.detail}` : null,
+        responseText && !data.detail ? `Response body: ${responseText.slice(0, 600)}` : null,
+      ]
+        .filter(Boolean)
+        .join("\n")
+    );
+  }
   return data;
 }
 

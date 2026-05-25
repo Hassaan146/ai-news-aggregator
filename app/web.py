@@ -139,6 +139,18 @@ def index() -> FileResponse:
     return FileResponse(WEB_DIR / "index.html")
 
 
+@app.get("/api/health")
+def health(request: Request) -> dict:
+    """Return basic deployment diagnostics for frontend connectivity checks."""
+
+    return {
+        "ok": True,
+        "service": "ai-news-aggregator-api",
+        "origin": request.headers.get("origin"),
+        "cors_origins_configured": bool(os.getenv("CORS_ORIGINS")),
+    }
+
+
 @app.post("/api/auth/register")
 def register(request: AuthRequest) -> dict:
     """Register a user account."""
