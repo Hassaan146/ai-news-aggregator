@@ -132,3 +132,41 @@ Send the live email:
 py -m app.email_runner --to your_user@gmail.com --hours 24 --top-n 10 --send --no-llm
 ```
 
+## Basic Local GUI
+
+Run the test GUI:
+
+```powershell
+py -m uvicorn app.web:app --host 127.0.0.1 --port 8000 --reload
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8000
+```
+
+Step 1 is the free-trial GUI: choose preferences, optionally paste a temporary
+Gemini API key override, and view top digests for the last X hours. The page
+shows whether ranking used `llm`, `deterministic`, or `fallback`.
+
+Step 2 will add Stripe payment for the paid email version. The current GUI has a
+Checkout button for it. Add these Stripe values to `.env` before testing a
+payment:
+
+```env
+STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key_here
+STRIPE_CHECKOUT_MODE=subscription
+STRIPE_PRICE_ID=
+STRIPE_AMOUNT_CENTS=500
+STRIPE_CURRENCY=usd
+STRIPE_INTERVAL=month
+STRIPE_PRODUCT_NAME=AI News Daily Email Plan
+```
+
+Use a Stripe test secret key while developing. Your payout/bank account is set
+inside the Stripe Dashboard, not inside this app. If `STRIPE_PRICE_ID` is empty,
+the app creates inline price data from the amount/currency/interval values.
+
+Step 3 will improve the production UI design after the test flow is working.
+

@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI News Aggregator</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Local test GUI</p>
+        <h1>AI News Aggregator</h1>
+      </div>
+      <div id="methodBadge" class="status">Ready</div>
+    </header>
+
+    <main class="layout">
+      <section class="panel controls">
+        <div class="tabs" aria-label="Plan">
+          <button class="tab active" type="button">Free trial</button>
+          <button class="tab" type="button">Stripe plan</button>
+        </div>
+
+        <form id="digestForm">
+          <label>
+            Profile
+            <select id="profileName" name="profile_name">
+              <option value="default_ai_reader">Default AI reader</option>
+              <option value="openai_anthropic">OpenAI + Anthropic</option>
+              <option value="builders">Builders</option>
+            </select>
+          </label>
+
+          <div class="grid-two">
+            <label>
+              Last hours
+              <input id="hours" name="hours" type="number" min="1" max="168" value="24" />
+            </label>
+            <label>
+              Top items
+              <input id="topN" name="top_n" type="number" min="1" max="50" value="10" />
+            </label>
+          </div>
+
+          <label class="toggle">
+            <input id="useLlm" name="use_llm" type="checkbox" checked />
+            <span>Use LLM ranking</span>
+          </label>
+
+          <label>
+            Gemini API key override
+            <input id="geminiKey" name="gemini_api_key" type="password" autocomplete="off" placeholder="Optional: test another key" />
+          </label>
+
+          <label>
+            Preferred sources
+            <input id="sources" name="preferred_sources" placeholder="OpenAI News, Anthropic News" />
+          </label>
+
+          <label>
+            Keywords
+            <input id="keywords" name="keywords" placeholder="agents, API, multimodal" />
+          </label>
+
+          <label>
+            Content types
+            <input id="kinds" name="preferred_kinds" placeholder="article, youtube_video" />
+          </label>
+
+          <label>
+            Exclude keywords
+            <input id="excluded" name="excluded_keywords" placeholder="policy, funding" />
+          </label>
+
+          <button class="primary" type="submit">Get ranked digests</button>
+        </form>
+      </section>
+
+      <section class="content">
+        <div class="panel summary">
+          <div>
+            <p class="eyebrow">Ranking status</p>
+            <h2 id="resultTitle">No results yet</h2>
+          </div>
+          <p id="resultMeta">Choose preferences and run the free trial.</p>
+        </div>
+
+        <div id="results" class="results"></div>
+      </section>
+
+      <aside class="panel email-panel">
+        <h2>Email test</h2>
+        <form id="emailForm">
+          <label>
+            Name
+            <input id="emailName" value="Hassan" />
+          </label>
+          <label>
+            Gmail
+            <input id="emailTo" placeholder="user@gmail.com" />
+          </label>
+          <div class="button-row">
+            <button type="button" id="previewEmail">Preview</button>
+            <button type="button" id="sendEmail" class="danger">Send live</button>
+          </div>
+        </form>
+        <pre id="emailPreview" class="email-preview">Email preview will appear here.</pre>
+
+        <div class="stripe-box">
+          <p class="eyebrow">Step 2</p>
+          <h3>Stripe payment</h3>
+          <p>Use Stripe Checkout to unlock daily email delivery.</p>
+          <form id="stripeForm" class="stripe-form">
+            <label>
+              Name
+              <input id="stripeName" value="Hassan" />
+            </label>
+            <label>
+              Gmail
+              <input id="stripeEmail" placeholder="user@gmail.com" />
+            </label>
+            <button type="button" id="startCheckout" class="primary">Start checkout</button>
+          </form>
+          <p id="stripeStatus" class="stripe-status">Test mode is controlled by your Stripe key in .env.</p>
+        </div>
+      </aside>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

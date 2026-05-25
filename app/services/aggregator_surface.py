@@ -25,6 +25,7 @@ def get_aggregated_digest(
     profile: UserProfile | None = None,
     limit: int = 50,
     use_llm: bool = True,
+    llm_api_key: str | None = None,
 ) -> list[AggregatedDigestItem]:
     """Return recent digest items sorted for a user profile."""
 
@@ -35,7 +36,7 @@ def get_aggregated_digest(
         return deterministic_items
 
     try:
-        return rank_with_llm(selected_profile, deterministic_items)
+        return rank_with_llm(selected_profile, deterministic_items, api_key=llm_api_key)
     except Exception as exc:
         return [
             AggregatedDigestItem(
@@ -77,6 +78,7 @@ def fetch_digest_rows(
 def rank_with_llm(
     profile: UserProfile,
     deterministic_items: list[AggregatedDigestItem],
+    api_key: str | None = None,
 ) -> list[AggregatedDigestItem]:
     """Use Gemini to rerank deterministic candidates."""
 
@@ -94,7 +96,7 @@ def rank_with_llm(
         }
         for item in deterministic_items
     ]
-    ranked = RankingAgent().rank_digest_items(profile, candidates)
+    ranked = RankingAgent(api_key=api_key).rank_digest_items(profile, candidates)
     ranked_by_id = {item.digest_id: item for item in ranked}
     original_by_id = {item.digest_id: item for item in deterministic_items}
 
@@ -132,6 +134,7 @@ def get_aggregated_digest_response(
     profile: UserProfile | None = None,
     limit: int = 50,
     use_llm: bool = True,
+    llm_api_key: str | None = None,
 ) -> AggregatedDigestResponse:
     """Return a Pydantic response for API/frontend use."""
 
@@ -141,6 +144,7 @@ def get_aggregated_digest_response(
         profile=selected_profile,
         limit=limit,
         use_llm=use_llm,
+        llm_api_key=llm_api_key,
     )
     item_schemas = [
         AggregatedDigestItemSchema.from_aggregated_item(item, rank=index + 1)
@@ -208,7 +212,8 @@ def get_top_digests(
     profile: UserProfile | None = None,
     limit: int = 100,
     use_llm: bool = False,
-) -> TopBadgesResponse:
+    llm_api_key: str | None = None,
+) -> TopDigestResponse:
     """Return top ranked digests/articles for recent website views."""
 
     response = get_aggregated_digest_response(
@@ -217,6 +222,7 @@ def get_top_digests(
         profile=profile,
         limit=limit,
         use_llm=use_llm,
+        llm_api_key=llm_api_key,
     )
 
     return TopDigestResponse(
