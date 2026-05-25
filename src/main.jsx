@@ -113,7 +113,7 @@ function BackgroundVideo() {
   );
 }
 
-function Navbar({ user, onOpenAuth, onDashboard, onLogout, onOpenInfo }) {
+function Navbar({ user, onOpenAuth, onDashboard, onOpenInfo }) {
   return (
     <motion.nav
       initial={{ y: -20, opacity: 0 }}
@@ -151,15 +151,11 @@ function Navbar({ user, onOpenAuth, onDashboard, onLogout, onOpenInfo }) {
                 className="text-white hover:text-white/80 transition-colors text-sm font-medium cursor-pointer"
                 onClick={onDashboard}
               >
-                Dashboard
+                Open app
               </button>
-              <button
-                type="button"
-                className="liquid-glass rounded-full px-5 py-2 text-sm font-medium text-white hover:opacity-90 transition-opacity cursor-pointer"
-                onClick={onLogout}
-              >
-                Logout
-              </button>
+              <div className="liquid-glass rounded-full px-5 py-2 text-sm font-medium text-white/90">
+                Active session
+              </div>
             </>
           ) : (
             <>
@@ -573,11 +569,11 @@ function Dashboard({ user, token, onLogout, onUser }) {
         <section className="overflow-auto rounded-[32px] border border-white/15 bg-[#0f1a2d]/55 backdrop-blur-xl p-5 md:p-8 shadow-2xl shadow-black/20">
           <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
             <div>
-              <p className="text-white/50 text-sm">Logged in as {user.email}</p>
+              <p className="text-white/50 text-sm">Workspace</p>
               <h1 className="text-3xl md:text-5xl font-semibold tracking-[-0.03em]">AI news dashboard</h1>
             </div>
-            <div className="glass-pill px-4 py-2 text-sm text-white/75">
-              {user.subscription_status || "free"} plan
+            <div className="glass-pill px-4 py-2 text-sm text-white/80">
+              {user.name} · {user.subscription_status || "free"} plan
             </div>
           </div>
         {message && <div className="mb-5 rounded-2xl bg-white/10 border border-white/15 p-4 text-sm text-white/85">{message}</div>}
@@ -888,7 +884,6 @@ function App() {
         user={user}
         onOpenAuth={openAuth}
         onDashboard={() => openAuth("login")}
-        onLogout={logout}
         onOpenInfo={setInfoModal}
       />
       <Hero onOpenAuth={openAuth} />
