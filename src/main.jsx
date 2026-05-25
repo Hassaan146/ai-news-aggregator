@@ -1006,7 +1006,9 @@ function App() {
 async function api(path, options = {}) {
   const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
   if (options.token) headers.Authorization = `Bearer ${options.token}`;
-  const response = await fetch(path, { ...options, headers });
+  const apiBase = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+  const url = path.startsWith("http") ? path : `${apiBase}${path}`;
+  const response = await fetch(url, { ...options, headers });
   const data = await response.json();
   if (!response.ok) throw new Error(data.detail || "Request failed");
   return data;

@@ -1,0 +1,15 @@
+beautifulsoup4>=4.14.2
+fastapi>=0.115.0
+feedparser>=6.0.12
+markdown>=3.7.0
+markdownify>=0.11.6
+openai>=1.0.0
+psycopg2-binary>=2.9.11
+pydantic>=2.0.0
+python-dotenv>=1.2.1
+requests>=2.32.5
+schedule>=1.2.0
+sqlalchemy>=2.0.44
+stripe>=12.0.0
+uvicorn>=0.30.0
+youtube-transcript-api>=1.2.3
