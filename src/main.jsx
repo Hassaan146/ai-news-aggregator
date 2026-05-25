@@ -404,17 +404,37 @@ function AuthModal({ mode, initialEmail, onClose, onAuth }) {
   });
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => setIsRegister(mode !== "login"), [mode]);
 
   async function submit(event) {
     event.preventDefault();
+    if (isSubmitting) return;
     setError("");
     setNotice("");
+    const email = form.email.trim();
+    const password = form.password.trim();
+    const name = form.name.trim();
+    if (isRegister && !name) {
+      setError("Please enter your name.");
+      return;
+    }
+    if (!email) {
+      setError("Please enter your email.");
+      return;
+    }
+    if (!password) {
+      setError("Please enter your password.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setNotice(isRegister ? "Creating your account..." : "Logging you in...");
     try {
       const data = await api(`/api/auth/${isRegister ? "register" : "login"}`, {
         method: "POST",
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, name, email, password }),
       });
       if (isRegister) {
         setNotice("Account created. Please login with the same email and password.");
@@ -424,7 +444,10 @@ function AuthModal({ mode, initialEmail, onClose, onAuth }) {
       }
       onAuth(data);
     } catch (err) {
+      setNotice("");
       setError(err.message);
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -480,10 +503,17 @@ function AuthModal({ mode, initialEmail, onClose, onAuth }) {
           </pre>
         )}
         <button
-          className="mt-6 w-full rounded-full bg-white text-black py-3 font-semibold"
+          className={`mt-6 w-full rounded-full bg-white text-black py-3 font-semibold transition-opacity ${isSubmitting ? "cursor-wait opacity-70" : "hover:opacity-90"}`}
+          disabled={isSubmitting}
           type="submit"
         >
-          {isRegister ? "Register" : "Login"}
+          {isSubmitting
+            ? isRegister
+              ? "Creating account..."
+              : "Logging in..."
+            : isRegister
+              ? "Register"
+              : "Login"}
         </button>
         <button
           className="mt-4 w-full text-center text-white/60 text-sm"
