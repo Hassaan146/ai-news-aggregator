@@ -31,10 +31,19 @@ def process_digest_items(
     lookback_hours: int | None = 48,
     model: str = DEFAULT_DIGEST_MODEL,
     delay_seconds: float = 6.0,
+    api_key: str | None = None,
+    allow_fallback: bool = True,
 ) -> DigestProcessingResult:
     """Create digest rows for stored news items that do not have one yet."""
 
-    agent = DigestAgent(model=model)
+    agent = None
+    agent_error: Exception | None = None
+    try:
+        agent = DigestAgent(model=model, api_key=api_key)
+    except Exception as exc:
+        if not allow_fallback:
+            raise
+        agent_error = exc
     created_or_updated = 0
     failed = 0
     stopped_reason: str | None = None
@@ -47,6 +56,8 @@ def process_digest_items(
         )
         for news_item in news_items:
             try:
+                if agent is None:
+                    raise RuntimeError(str(agent_error))
                 result = agent.summarize_news_item(news_item)
                 upsert_digest_item(
                     session=session,
@@ -67,10 +78,24 @@ def process_digest_items(
                 if exc.response is not None and exc.response.status_code == 429:
                     stopped_reason = "rate_limited"
                     break
+                if allow_fallback:
+                    create_fallback_digest(session, news_item, model, str(exc))
+                    session.commit()
+                    created_or_updated += 1
+                    if delay_seconds > 0:
+                        time.sleep(delay_seconds)
+                    continue
                 stopped_reason = str(exc)
             except Exception as exc:
                 session.rollback()
                 failed += 1
+                if allow_fallback:
+                    create_fallback_digest(session, news_item, model, str(exc))
+                    session.commit()
+                    created_or_updated += 1
+                    if delay_seconds > 0:
+                        time.sleep(delay_seconds)
+                    continue
                 stopped_reason = str(exc)
 
     return DigestProcessingResult(
@@ -79,6 +104,41 @@ def process_digest_items(
         failed=failed,
         stopped_reason=stopped_reason,
     )
+
+
+def create_fallback_digest(
+    session,
+    news_item,
+    model: str,
+    error: str,
+) -> None:
+    """Create a usable digest row when the LLM is unavailable."""
+
+    summary = build_fallback_summary(news_item)
+    upsert_digest_item(
+        session=session,
+        news_item=news_item,
+        digest_title=news_item.title.strip(),
+        digest_summary=summary,
+        model=f"{model}:deterministic_fallback",
+        response_id=None,
+        raw_response={"fallback": True, "error": error[:500]},
+    )
+
+
+def build_fallback_summary(news_item) -> str:
+    """Build a concise deterministic summary from stored source text."""
+
+    text = (
+        news_item.summary
+        or news_item.content
+        or news_item.transcript
+        or "No source summary was available."
+    )
+    text = " ".join(str(text).split())
+    if len(text) > 500:
+        text = text[:497].rstrip() + "..."
+    return text
 
 
 def list_generated_digest_items(limit: int = 100) -> list[DigestItem]:

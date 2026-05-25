@@ -24,6 +24,8 @@ const defaultPrefs = {
   top_n: 10,
   profile_name: "default_ai_reader",
   use_llm: true,
+  generate_missing_digests: true,
+  gemini_api_key: "",
   preferred_sources: ["OpenAI News", "Anthropic News", "TechCrunch AI"],
   preferred_kinds: ["article", "youtube_video"],
   keywords: ["openai", "anthropic", "agents", "llm"],
@@ -515,7 +517,11 @@ function Dashboard({ user, token, onLogout, onUser }) {
       });
       setDigests(data);
       setPage("digests");
-      setMessage(`${data.ranking_method.toUpperCase()} ranking returned ${data.total_items} items.`);
+      const generation = data.digest_generation;
+      const generationText = generation
+        ? ` Digests processed: ${generation.processed}, saved: ${generation.created_or_updated}${generation.stopped_reason ? `, stopped: ${generation.stopped_reason}` : ""}.`
+        : "";
+      setMessage(`${data.ranking_method.toUpperCase()} ranking returned ${data.total_items} items.${generationText}`);
     } catch (err) {
       setMessage(err.message);
     }
@@ -896,17 +902,39 @@ function PreferenceTable({
 function DigestMaker({ prefs, setPrefs, onRun, digests }) {
   return (
     <div className="grid gap-5">
-      <Panel title="Digest making" description="Choose the lookback window and number of ranked articles.">
+      <Panel title="Digest making" description="Generate missing digest rows, save them to the database, then rank the saved digests for this user.">
         <div className="grid md:grid-cols-3 gap-4">
           <Field label="Last hours" type="number" value={prefs.hours} onChange={(hours) => setPrefs({ ...prefs, hours: Number(hours) })} />
           <Field label="Top articles" type="number" value={prefs.top_n} onChange={(top_n) => setPrefs({ ...prefs, top_n: Number(top_n) })} />
           <Toggle label="Use LLM ranking" checked={prefs.use_llm} onChange={(use_llm) => setPrefs({ ...prefs, use_llm })} />
         </div>
-        <button className="mt-5 rounded-full bg-white text-black px-5 py-3 font-semibold" onClick={onRun} type="button">Get top digests</button>
+        <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
+          <Field
+            label="Temporary Gemini API key"
+            type="password"
+            value={prefs.gemini_api_key || ""}
+            onChange={(gemini_api_key) => setPrefs({ ...prefs, gemini_api_key })}
+          />
+          <Toggle
+            label="Create missing digests first"
+            checked={prefs.generate_missing_digests !== false}
+            onChange={(generate_missing_digests) => setPrefs({ ...prefs, generate_missing_digests })}
+          />
+        </div>
+        <p className="mt-3 text-sm leading-6 text-white/55">
+          Leave the key empty to use the backend Render `GEMINI_API_KEY`. If the LLM fails,
+          the backend saves deterministic fallback digests so the dashboard can still show items.
+        </p>
+        <button className="mt-5 rounded-full bg-white text-black px-5 py-3 font-semibold" onClick={onRun} type="button">Make and rank digests</button>
       </Panel>
       {digests && (
         <div className="grid gap-3">
-          <p className="text-white/60 text-sm">Ranking: {digests.ranking_method} | Window: {digests.lookback_hours} hours</p>
+          <p className="text-white/60 text-sm">
+            Ranking: {digests.ranking_method} | Window: {digests.lookback_hours} hours
+            {digests.digest_generation
+              ? ` | Generated: ${digests.digest_generation.created_or_updated}/${digests.digest_generation.processed}`
+              : ""}
+          </p>
           {digests.items.map((item) => (
             <article className="rounded-3xl border border-white/10 bg-white/[0.04] p-5" key={item.identity_key}>
               <div className="flex justify-between gap-4">

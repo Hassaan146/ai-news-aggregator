@@ -36,6 +36,7 @@ from app.services.payments import (
     create_checkout_session,
     retrieve_checkout_session,
 )
+from app.services.process_digest_items import process_digest_items
 
 WEB_DIR = Path(__file__).parent / "web_static"
 DEFAULT_CORS_ORIGIN_REGEX = (
@@ -103,6 +104,7 @@ class DigestRequest(BaseModel):
     preferred_kinds: list[str] = Field(default_factory=list)
     keywords: list[str] = Field(default_factory=list)
     excluded_keywords: list[str] = Field(default_factory=list)
+    generate_missing_digests: bool = True
 
 
 class UserRequest(BaseModel):
@@ -382,6 +384,18 @@ def dashboard_digests(request: DigestRequest, user=Depends(current_user)) -> dic
 
     merged = merge_saved_preferences(request, user.preferences or {})
     try:
+        digest_generation = None
+        if merged.generate_missing_digests:
+            digest_generation = process_digest_items(
+                limit=int(os.getenv("DIGEST_GENERATION_LIMIT", "10")),
+                lookback_hours=merged.hours,
+                delay_seconds=float(os.getenv("DIGEST_GENERATION_DELAY_SECONDS", "8")),
+                api_key=clean_optional(merged.gemini_api_key),
+                allow_fallback=os.getenv("DIGEST_ALLOW_FALLBACK", "true")
+                .strip()
+                .lower()
+                in {"1", "true", "yes"},
+            )
         response = get_top_digests(
             hours=merged.hours,
             top_n=merged.top_n,
@@ -389,7 +403,15 @@ def dashboard_digests(request: DigestRequest, user=Depends(current_user)) -> dic
             use_llm=merged.use_llm,
             llm_api_key=clean_optional(merged.gemini_api_key),
         )
-        return response.model_dump(mode="json")
+        payload = response.model_dump(mode="json")
+        if digest_generation is not None:
+            payload["digest_generation"] = {
+                "processed": digest_generation.processed,
+                "created_or_updated": digest_generation.created_or_updated,
+                "failed": digest_generation.failed,
+                "stopped_reason": digest_generation.stopped_reason,
+            }
+        return payload
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -638,6 +660,7 @@ def merge_saved_preferences(request: DigestRequest, saved: dict) -> DigestReques
         keywords=request.keywords or saved.get("keywords", []),
         excluded_keywords=request.excluded_keywords
         or saved.get("excluded_keywords", []),
+        generate_missing_digests=request.generate_missing_digests,
     )
 
 
