@@ -2,16 +2,86 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Iterable
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from .models import NewsItem, SourceRun
+from .models import DigestItem, NewsItem, SourceRun, User
 
 if TYPE_CHECKING:
     from app.services.models import ProcessedItem
+
+GMAIL_ADDRESS_PATTERN = re.compile(
+    r"^[a-z0-9](?:[a-z0-9._%+-]{0,62}[a-z0-9])?@(gmail\.com|googlemail\.com)$"
+)
+
+
+def create_user(
+    session: Session,
+    name: str,
+    email: str,
+    profile_name: str = "default_ai_reader",
+) -> User:
+    """Create a user with a Gmail address."""
+
+    normalized_email = validate_gmail_address(email)
+    user = User(name=name.strip(), email=normalized_email, profile_name=profile_name)
+    session.add(user)
+    session.flush()
+    return user
+
+
+def upsert_user(
+    session: Session,
+    name: str,
+    email: str,
+    profile_name: str = "default_ai_reader",
+) -> User:
+    """Create or update a user by email."""
+
+    normalized_email = validate_gmail_address(email)
+    user = get_user_by_email(session, normalized_email)
+    if user is None:
+        return create_user(session, name, normalized_email, profile_name)
+
+    user.name = name.strip()
+    user.profile_name = profile_name
+    user.is_active = True
+    user.updated_at = datetime.now(UTC)
+    session.flush()
+    return user
+
+
+def get_user(session: Session, user_id: int) -> User | None:
+    """Return one user by id."""
+
+    return session.get(User, user_id)
+
+
+def get_user_by_email(session: Session, email: str) -> User | None:
+    """Return one user by email."""
+
+    statement = select(User).where(User.email == email.strip().lower())
+    return session.execute(statement).scalar_one_or_none()
+
+
+def list_active_users(session: Session) -> list[User]:
+    """List active users."""
+
+    statement = select(User).where(User.is_active.is_(True)).order_by(User.created_at)
+    return list(session.execute(statement).scalars())
+
+
+def validate_gmail_address(email: str) -> str:
+    """Require a Gmail or Googlemail address for user accounts."""
+
+    normalized_email = email.strip().lower()
+    if not GMAIL_ADDRESS_PATTERN.fullmatch(normalized_email):
+        raise ValueError("User email must be a valid Gmail address.")
+    return normalized_email
 
 
 def create_news_item(session: Session, item: ProcessedItem) -> NewsItem:
@@ -102,6 +172,75 @@ def list_recent_news_items(session: Session, hours: int = 24) -> list[NewsItem]:
         .where((NewsItem.published_at >= cutoff) | (NewsItem.scraped_at >= cutoff))
         .order_by(NewsItem.published_at.desc().nullslast(), NewsItem.scraped_at.desc())
     )
+    return list(session.execute(statement).scalars())
+
+
+def list_news_items_without_digest(
+    session: Session,
+    limit: int = 25,
+    hours: int | None = None,
+) -> list[NewsItem]:
+    """List stored items that do not yet have digest rows."""
+
+    statement = (
+        select(NewsItem)
+        .outerjoin(DigestItem, DigestItem.news_item_id == NewsItem.id)
+        .where(DigestItem.id.is_(None))
+        .order_by(NewsItem.published_at.desc().nullslast(), NewsItem.scraped_at.desc())
+        .limit(limit)
+    )
+    if hours is not None:
+        cutoff = datetime.now(UTC) - timedelta(hours=hours)
+        statement = statement.where(
+            (NewsItem.published_at >= cutoff) | (NewsItem.scraped_at >= cutoff)
+        )
+    return list(session.execute(statement).scalars())
+
+
+def upsert_digest_item(
+    session: Session,
+    news_item: NewsItem,
+    digest_title: str,
+    digest_summary: str,
+    model: str,
+    response_id: str | None = None,
+    raw_response: dict | None = None,
+) -> DigestItem:
+    """Insert or update one digest row linked to a news item."""
+
+    statement = select(DigestItem).where(DigestItem.news_item_id == news_item.id)
+    digest = session.execute(statement).scalar_one_or_none()
+    if digest is None:
+        digest = DigestItem(
+            news_item_id=news_item.id,
+            source=news_item.source,
+            kind=news_item.kind,
+            url=news_item.url,
+            digest_title=digest_title,
+            digest_summary=digest_summary,
+            model=model,
+            response_id=response_id,
+            raw_response=raw_response or {},
+        )
+        session.add(digest)
+    else:
+        digest.source = news_item.source
+        digest.kind = news_item.kind
+        digest.url = news_item.url
+        digest.digest_title = digest_title
+        digest.digest_summary = digest_summary
+        digest.model = model
+        digest.response_id = response_id
+        digest.raw_response = raw_response or {}
+        digest.updated_at = datetime.now(UTC)
+    session.flush()
+    return digest
+
+
+def list_digest_items(session: Session, limit: int = 100) -> list[DigestItem]:
+    """List generated digest rows newest first."""
+
+    statement = select(DigestItem).order_by(DigestItem.created_at.desc()).limit(limit)
     return list(session.execute(statement).scalars())
 
 

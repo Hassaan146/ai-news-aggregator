@@ -99,3 +99,36 @@ For a practical first version of the aggregator, start with these high-signal so
 - https://arxiv.org/list/cs.AI/recent
 - https://huggingface.co/papers
 
+## User Accounts And Email Sending
+
+User accounts are stored in the `users` table. Accounts must use a Gmail or
+Googlemail address because the first live email sender uses Gmail SMTP.
+
+Add these values to `.env` before sending live emails:
+
+```env
+GMAIL_ADDRESS=your_sender_gmail@gmail.com
+GMAIL_APP_PASSWORD=your_gmail_app_password_here
+```
+
+The Gmail app password is not your normal Gmail password. Create it from your
+Google Account security settings after enabling 2-Step Verification.
+
+Create or update a user:
+
+```powershell
+py -m app.user_runner --create --name Hassan --email your_user@gmail.com --profile default_ai_reader
+```
+
+Preview the email for a stored user:
+
+```powershell
+py -m app.email_runner --to your_user@gmail.com --hours 24 --top-n 10 --no-llm
+```
+
+Send the live email:
+
+```powershell
+py -m app.email_runner --to your_user@gmail.com --hours 24 --top-n 10 --send --no-llm
+```
+

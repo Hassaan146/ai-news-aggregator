@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, Integer, JSON, String, Text, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .connection import Base
 
@@ -50,6 +50,39 @@ class NewsItem(Base):
         nullable=False,
     )
     item_metadata: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    digest_item: Mapped["DigestItem | None"] = relationship(
+        back_populates="news_item",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+
+
+class User(Base):
+    """Application user account and email preferences."""
+
+    __tablename__ = "users"
+    __table_args__ = (UniqueConstraint("email", name="uq_users_email"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    email: Mapped[str] = mapped_column(String(320), nullable=False, index=True)
+    profile_name: Mapped[str] = mapped_column(
+        String(100),
+        default="default_ai_reader",
+        nullable=False,
+    )
+    is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
 
 
 class SourceRun(Base):
@@ -74,3 +107,41 @@ class SourceRun(Base):
     )
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     run_metadata: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class DigestItem(Base):
+    """AI-generated digest summary linked to a stored news item."""
+
+    __tablename__ = "digest_items"
+    __table_args__ = (
+        UniqueConstraint("news_item_id", name="uq_digest_items_news_item_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    news_item_id: Mapped[int] = mapped_column(
+        ForeignKey("news_items.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    source: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    kind: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    url: Mapped[str] = mapped_column(Text, nullable=False)
+    digest_title: Mapped[str] = mapped_column(Text, nullable=False)
+    digest_summary: Mapped[str] = mapped_column(Text, nullable=False)
+    model: Mapped[str] = mapped_column(String(100), nullable=False)
+    response_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    raw_response: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+        index=True,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    news_item: Mapped[NewsItem] = relationship(back_populates="digest_item")

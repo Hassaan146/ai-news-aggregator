@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .connection import Base, engine
-from .models import NewsItem  # noqa: F401
+from .models import DigestItem, NewsItem, SourceRun, User  # noqa: F401
 
 
 def create_tables() -> None:
