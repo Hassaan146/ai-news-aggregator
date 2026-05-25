@@ -61,17 +61,32 @@ def fetch_digest_rows(
     hours: int = 48,
     limit: int = 50,
 ) -> list[tuple[DigestItem, NewsItem]]:
-    """Fetch recent digest/news rows for aggregation."""
+    """Fetch recent digest/news rows, filling gaps with latest undated items."""
 
     cutoff = datetime.now(UTC) - timedelta(hours=hours)
     with get_session() as session:
-        statement = (
+        dated_statement = (
             select(DigestItem, NewsItem)
             .join(NewsItem, NewsItem.id == DigestItem.news_item_id)
-            .where((NewsItem.published_at >= cutoff) | (NewsItem.scraped_at >= cutoff))
+            .where(NewsItem.published_at >= cutoff)
+            .order_by(NewsItem.published_at.desc(), NewsItem.scraped_at.desc())
             .limit(limit)
         )
-        rows = list(session.execute(statement).all())
+        rows = list(session.execute(dated_statement).all())
+        if len(rows) < limit:
+            seen_digest_ids = {digest.id for digest, _ in rows}
+            undated_statement = (
+                select(DigestItem, NewsItem)
+                .join(NewsItem, NewsItem.id == DigestItem.news_item_id)
+                .where(NewsItem.published_at.is_(None), NewsItem.scraped_at >= cutoff)
+                .order_by(NewsItem.scraped_at.desc())
+                .limit(limit - len(rows))
+            )
+            rows.extend(
+                (digest, item)
+                for digest, item in session.execute(undated_statement).all()
+                if digest.id not in seen_digest_ids
+            )
     return rows
 
 

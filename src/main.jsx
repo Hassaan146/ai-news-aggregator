@@ -20,7 +20,7 @@ const VIDEO_URL =
   "https://stream.mux.com/kimF2ha9zLrX64H00UgLGPflCzNtl1T0215MlAmeOztv8.m3u8";
 
 const defaultPrefs = {
-  hours: 24,
+  hours: 72,
   top_n: 10,
   profile_name: "default_ai_reader",
   use_llm: true,
@@ -33,9 +33,9 @@ const defaultPrefs = {
 
 const validationLimits = {
   minHours: 1,
-  maxHours: 720,
+  maxHours: 72,
   minTopDigests: 1,
-  maxTopDigests: 50,
+  maxTopDigests: 10,
   maxSources: 8,
   maxKeywords: 20,
   maxKeywordLength: 40,
@@ -497,7 +497,7 @@ function AuthModal({ mode, initialEmail, onClose, onAuth }) {
 
 function Dashboard({ user, token, onLogout, onUser }) {
   const [page, setPage] = useState("preferences");
-  const [prefs, setPrefs] = useState(user.preferences || defaultPrefs);
+  const [prefs, setPrefs] = useState(() => normalizePreferences(user.preferences));
   const [digests, setDigests] = useState(null);
   const [reviews, setReviews] = useState(null);
   const [message, setMessage] = useState("");
@@ -1020,24 +1020,76 @@ function DigestMaker({ prefs, setPrefs, onRun, digests, isDigestLoading }) {
         </button>
       </Panel>
       {digests && (
-        <div className="grid gap-3">
-          <p className="text-white/60 text-sm">
-            Ranking: {digests.ranking_method} | Window: {digests.lookback_hours} hours
-            {digests.digest_generation
-              ? ` | Generated: ${digests.digest_generation.created_or_updated}/${digests.digest_generation.processed}`
-              : ""}
-          </p>
+        <section className="liquid-glass rounded-[30px] p-5">
+          <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">
+                Personalized digest
+              </p>
+              <h2 className="mt-1 text-2xl font-semibold">Top {digests.total_items} AI updates</h2>
+              <p className="mt-2 text-sm leading-6 text-white/55">
+                Ranked with {digests.ranking_method} logic across the last {digests.lookback_hours} hours.
+                {digests.digest_generation
+                  ? ` Generated ${digests.digest_generation.created_or_updated} new digest rows from ${digests.digest_generation.processed} stored articles.`
+                  : ""}
+              </p>
+            </div>
+            <div className="rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-sm text-white/70">
+              Max 10 articles
+            </div>
+          </div>
+          <div className="grid gap-4">
           {digests.items.map((item) => (
-            <article className="rounded-3xl border border-white/10 bg-white/[0.04] p-5" key={item.identity_key}>
-              <div className="flex justify-between gap-4">
-                <h3 className="font-semibold text-lg">{item.rank}. {item.title}</h3>
-                <span className="text-white/50 text-sm">{item.score}</span>
+            <article className="rounded-[28px] border border-white/10 bg-[#111f36]/80 p-5 shadow-xl shadow-black/10" key={item.identity_key}>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-white text-sm font-semibold text-[#07111f]">
+                  {item.rank}
+                </span>
+                <span className="rounded-full border border-cyan-200/20 bg-cyan-200/10 px-3 py-1 font-medium text-cyan-100">
+                  {item.source}
+                </span>
+                <span className="rounded-full border border-emerald-200/20 bg-emerald-200/10 px-3 py-1 font-medium text-emerald-100">
+                  {item.kind.replace("_", " ")}
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-white/60">
+                  {formatDigestDate(item.published_at)}
+                </span>
+                <span className="ml-auto rounded-full border border-white/10 bg-black/20 px-3 py-1 text-white/55">
+                  score {item.score}
+                </span>
               </div>
-              <p className="mt-2 text-white/70 leading-7">{item.summary}</p>
-              <a className="mt-3 inline-block text-white/80 text-sm" href={item.url} target="_blank" rel="noreferrer">Open source</a>
+              <h3 className="mt-4 text-xl font-semibold leading-snug text-white">
+                {item.title}
+              </h3>
+              <p className="mt-3 rounded-3xl border border-white/10 bg-black/20 p-4 text-[15px] leading-8 text-white/80">
+                {item.summary}
+              </p>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap gap-2">
+                  {(item.matched_reasons || []).slice(0, 4).map((reason) => (
+                    <span key={reason} className="rounded-full bg-white/[0.07] px-3 py-1 text-xs text-white/50">
+                      {formatReason(reason)}
+                    </span>
+                  ))}
+                </div>
+                <a
+                  className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#07111f] transition-opacity hover:opacity-90"
+                  href={item.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Read original
+                </a>
+              </div>
             </article>
           ))}
-        </div>
+          </div>
+          {!digests.items.length && (
+            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 text-white/60">
+              No readable digest rows were available yet. Generate again after the scraper has saved fresh source items.
+            </div>
+          )}
+        </section>
       )}
     </div>
   );
@@ -1256,6 +1308,26 @@ function validateDigestPreferences(prefs) {
   return "";
 }
 
+function normalizePreferences(preferences) {
+  const merged = { ...defaultPrefs, ...(preferences || {}) };
+  return {
+    ...merged,
+    hours: clampInteger(merged.hours, 72, validationLimits.minHours, validationLimits.maxHours),
+    top_n: clampInteger(
+      merged.top_n,
+      10,
+      validationLimits.minTopDigests,
+      validationLimits.maxTopDigests,
+    ),
+  };
+}
+
+function clampInteger(value, fallback, min, max) {
+  const number = Number(value);
+  if (!Number.isInteger(number)) return fallback;
+  return Math.min(Math.max(number, min), max);
+}
+
 function validateAccountIdentity(user) {
   if (!user?.name?.trim()) return "Your account name is missing. Please log out and register again.";
   if (!isValidEmail(user.email)) return "Your account email is invalid. Please use a valid email before checkout.";
@@ -1276,6 +1348,26 @@ function validateReviewPayload(payload) {
 
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
+}
+
+function formatDigestDate(value) {
+  if (!value) return "latest undated";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "latest undated";
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatReason(reason) {
+  return String(reason || "")
+    .replace("source:", "source: ")
+    .replace("keyword:", "topic: ")
+    .replace("kind:", "type: ")
+    .replace("ranked_by:", "ranked by ")
+    .replaceAll("_", " ");
 }
 
 function formatBackendDetail(detail) {

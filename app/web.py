@@ -121,8 +121,8 @@ async def validation_exception_handler(
 class DigestRequest(BaseModel):
     """Request for personalized digest results."""
 
-    hours: int = Field(default=24, ge=1, le=720)
-    top_n: int = Field(default=10, ge=1, le=50)
+    hours: int = Field(default=72, ge=1, le=72)
+    top_n: int = Field(default=10, ge=1, le=10)
     profile_name: str | None = "default_ai_reader"
     use_llm: bool = True
     preferred_sources: list[str] = Field(default_factory=list)
@@ -684,7 +684,7 @@ def default_preferences(profile_name: str = "default_ai_reader") -> dict:
 
     profile = get_profile(profile_name)
     return {
-        "hours": 24,
+        "hours": 72,
         "top_n": 10,
         "profile_name": profile.name,
         "use_llm": True,
@@ -714,7 +714,7 @@ def merge_saved_preferences(request: DigestRequest, saved: dict) -> DigestReques
     """Fill empty request fields from saved user preferences."""
 
     return DigestRequest(
-        hours=request.hours or int(saved.get("hours", 24)),
+        hours=request.hours or int(saved.get("hours", 72)),
         top_n=request.top_n or int(saved.get("top_n", 10)),
         profile_name=request.profile_name or saved.get("profile_name"),
         use_llm=request.use_llm,
