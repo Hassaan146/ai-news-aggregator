@@ -755,38 +755,57 @@ function Preferences({ prefs, setPrefs, onSave, onRun }) {
         ))}
       </div>
 
-      <div className="mt-6 grid gap-6">
-        <ChipGroup
-          title="Sources"
+      <div className="mt-6 grid gap-4 xl:grid-cols-3">
+        <PreferenceTable
+          title="Source feeds"
+          eyebrow="Where news comes from"
+          description="Official blogs, AI labs, media sites, and trusted update channels."
+          tone="cyan"
           values={prefs.preferred_sources || []}
           options={sourceOptions}
           onChange={(preferred_sources) => setPrefs({ ...prefs, preferred_sources })}
         />
-        <ChipGroup
-          title="Topics"
-          values={prefs.keywords || []}
-          options={keywordOptions}
-          onChange={(keywords) => setPrefs({ ...prefs, keywords })}
-        />
-        <div>
-          <label className="text-sm text-white/60">Add custom topic</label>
-          <div className="mt-2 flex gap-2">
-            <input
-              className="flex-1 rounded-full border border-white/10 bg-black/30 px-4 py-3 outline-none text-white"
-              value={customKeyword}
-              onChange={(event) => setCustomKeyword(event.target.value)}
-              placeholder="e.g. robotics, evals, startups"
-            />
-            <button className="rounded-full bg-white px-5 text-black font-semibold" type="button" onClick={addCustomKeyword}>Add</button>
+
+        <div className="rounded-3xl border border-violet-300/20 bg-violet-300/[0.055] p-4">
+          <PreferenceTable
+            title="Topic keywords"
+            eyebrow="What the ranking prefers"
+            description="Signals used to prioritize the articles and videos most relevant to you."
+            tone="violet"
+            values={prefs.keywords || []}
+            options={keywordOptions}
+            onChange={(keywords) => setPrefs({ ...prefs, keywords })}
+            embedded
+          />
+          <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-3">
+            <label className="text-xs font-medium uppercase tracking-[0.16em] text-violet-100/70">
+              Add custom topic
+            </label>
+            <div className="mt-2 flex gap-2">
+              <input
+                className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/35"
+                value={customKeyword}
+                onChange={(event) => setCustomKeyword(event.target.value)}
+                placeholder="robotics, evals, startups"
+              />
+              <button className="rounded-2xl bg-violet-200 px-4 text-sm font-semibold text-[#160f2d]" type="button" onClick={addCustomKeyword}>Add</button>
+            </div>
           </div>
         </div>
-        <ChipGroup
+
+        <PreferenceTable
           title="Content types"
+          eyebrow="Format filters"
+          description="Choose whether the digest should include written posts, YouTube updates, or both."
+          tone="emerald"
           values={prefs.preferred_kinds || []}
           options={contentTypeOptions.map(([id]) => id)}
           labels={Object.fromEntries(contentTypeOptions)}
           onChange={(preferred_kinds) => setPrefs({ ...prefs, preferred_kinds })}
         />
+      </div>
+
+      <div className="mt-5 rounded-3xl border border-white/15 bg-white/[0.06] p-4">
         <Toggle label="Use LLM ranking when available" checked={prefs.use_llm} onChange={(use_llm) => setPrefs({ ...prefs, use_llm })} />
       </div>
       <div className="flex gap-3 mt-6">
@@ -797,7 +816,38 @@ function Preferences({ prefs, setPrefs, onSave, onRun }) {
   );
 }
 
-function ChipGroup({ title, options, values, onChange, labels = {} }) {
+function PreferenceTable({
+  title,
+  eyebrow,
+  description,
+  tone,
+  options,
+  values,
+  onChange,
+  labels = {},
+  embedded = false,
+}) {
+  const tones = {
+    cyan: {
+      shell: "border-cyan-300/20 bg-cyan-300/[0.055]",
+      badge: "bg-cyan-200 text-[#06242b]",
+      selected: "border-cyan-200/70 bg-cyan-200 text-[#06242b]",
+      accent: "text-cyan-100/70",
+    },
+    violet: {
+      shell: "border-transparent bg-transparent p-0",
+      badge: "bg-violet-200 text-[#160f2d]",
+      selected: "border-violet-200/70 bg-violet-200 text-[#160f2d]",
+      accent: "text-violet-100/70",
+    },
+    emerald: {
+      shell: "border-emerald-300/20 bg-emerald-300/[0.055]",
+      badge: "bg-emerald-200 text-[#062b1e]",
+      selected: "border-emerald-200/70 bg-emerald-200 text-[#062b1e]",
+      accent: "text-emerald-100/70",
+    },
+  }[tone];
+
   function toggle(option) {
     const next = values.includes(option)
       ? values.filter((item) => item !== option)
@@ -806,21 +856,40 @@ function ChipGroup({ title, options, values, onChange, labels = {} }) {
   }
 
   return (
-    <div>
-      <h3 className="mb-3 text-sm font-semibold text-white/70">{title}</h3>
-      <div className="flex flex-wrap gap-2">
+    <section className={embedded ? "" : `rounded-3xl border p-4 ${tones.shell}`}>
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <p className={`text-[10px] font-semibold uppercase tracking-[0.18em] ${tones.accent}`}>
+            {eyebrow}
+          </p>
+          <h3 className="mt-1 text-lg font-semibold text-white">{title}</h3>
+          <p className="mt-2 text-sm leading-6 text-white/55">{description}</p>
+        </div>
+        <div className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${tones.badge}`}>
+          {values.length}/{options.length}
+        </div>
+      </div>
+
+      <div className="grid gap-2">
         {options.map((option) => (
           <button
             key={option}
             type="button"
             onClick={() => toggle(option)}
-              className={`rounded-full border px-4 py-2 text-sm transition-colors ${values.includes(option) ? "border-white/50 bg-white text-black" : "border-white/15 bg-white/[0.08] text-white/75 hover:text-white"}`}
+            className={`flex items-center justify-between gap-3 rounded-2xl border px-3 py-3 text-left text-sm transition-colors ${
+              values.includes(option)
+                ? tones.selected
+                : "border-white/10 bg-black/20 text-white/72 hover:border-white/25 hover:text-white"
+            }`}
           >
-            {labels[option] || option}
+            <span className="font-medium">{labels[option] || option}</span>
+            <span className="grid h-5 w-5 place-items-center rounded-full border border-current text-[10px]">
+              {values.includes(option) ? "✓" : "+"}
+            </span>
           </button>
         ))}
       </div>
-    </div>
+    </section>
   );
 }
 
