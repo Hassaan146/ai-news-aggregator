@@ -25,7 +25,6 @@ const defaultPrefs = {
   profile_name: "default_ai_reader",
   use_llm: true,
   generate_missing_digests: true,
-  gemini_api_key: "",
   preferred_sources: ["OpenAI News", "Anthropic News", "TechCrunch AI"],
   preferred_kinds: ["article", "youtube_video"],
   keywords: ["openai", "anthropic", "agents", "llm"],
@@ -909,12 +908,9 @@ function DigestMaker({ prefs, setPrefs, onRun, digests }) {
           <Toggle label="Use LLM ranking" checked={prefs.use_llm} onChange={(use_llm) => setPrefs({ ...prefs, use_llm })} />
         </div>
         <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
-          <Field
-            label="Temporary Gemini API key"
-            type="password"
-            value={prefs.gemini_api_key || ""}
-            onChange={(gemini_api_key) => setPrefs({ ...prefs, gemini_api_key })}
-          />
+          <div className="rounded-3xl border border-white/15 bg-white/[0.06] p-4 text-sm leading-6 text-white/65">
+            Digest and ranking agents use the secure backend Gemini key configured in Render.
+          </div>
           <Toggle
             label="Create missing digests first"
             checked={prefs.generate_missing_digests !== false}
@@ -922,8 +918,8 @@ function DigestMaker({ prefs, setPrefs, onRun, digests }) {
           />
         </div>
         <p className="mt-3 text-sm leading-6 text-white/55">
-          Leave the key empty to use the backend Render `GEMINI_API_KEY`. If the LLM fails,
-          the backend saves deterministic fallback digests so the dashboard can still show items.
+          If the LLM fails or hits a limit, the backend saves deterministic fallback digests
+          so the dashboard can still show items.
         </p>
         <button className="mt-5 rounded-full bg-white text-black px-5 py-3 font-semibold" onClick={onRun} type="button">Make and rank digests</button>
       </Panel>

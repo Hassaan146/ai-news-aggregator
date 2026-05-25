@@ -95,7 +95,6 @@ function buildDigestPayload() {
     hours: Number(document.querySelector("#hours").value || 24),
     top_n: Number(document.querySelector("#topN").value || 10),
     use_llm: document.querySelector("#useLlm").checked,
-    gemini_api_key: document.querySelector("#geminiKey").value.trim() || null,
     preferred_sources: csv("#sources"),
     keywords: csv("#keywords"),
     preferred_kinds: csv("#kinds"),

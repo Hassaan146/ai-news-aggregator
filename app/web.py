@@ -99,7 +99,6 @@ class DigestRequest(BaseModel):
     top_n: int = Field(default=10, ge=1, le=50)
     profile_name: str | None = "default_ai_reader"
     use_llm: bool = True
-    gemini_api_key: str | None = None
     preferred_sources: list[str] = Field(default_factory=list)
     preferred_kinds: list[str] = Field(default_factory=list)
     keywords: list[str] = Field(default_factory=list)
@@ -287,7 +286,6 @@ def digests(request: DigestRequest) -> dict:
             top_n=request.top_n,
             profile=build_profile(request),
             use_llm=request.use_llm,
-            llm_api_key=clean_optional(request.gemini_api_key),
         )
         return response.model_dump(mode="json")
     except Exception as exc:
@@ -390,7 +388,6 @@ def dashboard_digests(request: DigestRequest, user=Depends(current_user)) -> dic
                 limit=int(os.getenv("DIGEST_GENERATION_LIMIT", "10")),
                 lookback_hours=merged.hours,
                 delay_seconds=float(os.getenv("DIGEST_GENERATION_DELAY_SECONDS", "8")),
-                api_key=clean_optional(merged.gemini_api_key),
                 allow_fallback=os.getenv("DIGEST_ALLOW_FALLBACK", "true")
                 .strip()
                 .lower()
@@ -401,7 +398,6 @@ def dashboard_digests(request: DigestRequest, user=Depends(current_user)) -> dic
             top_n=merged.top_n,
             profile=build_profile(merged),
             use_llm=merged.use_llm,
-            llm_api_key=clean_optional(merged.gemini_api_key),
         )
         payload = response.model_dump(mode="json")
         if digest_generation is not None:
@@ -426,7 +422,6 @@ def preview_email(request: EmailPreviewRequest) -> dict:
             top_n=request.top_n,
             profile=build_profile(request),
             use_llm=request.use_llm,
-            llm_api_key=clean_optional(request.gemini_api_key),
         )
         email = EmailAgent().build_daily_digest_email(
             recipient_name=request.name,
@@ -461,7 +456,6 @@ def send_email(request: EmailSendRequest) -> dict:
             top_n=request.top_n,
             profile=build_profile(request),
             use_llm=request.use_llm,
-            llm_api_key=clean_optional(request.gemini_api_key),
         )
         email = EmailAgent().build_daily_digest_email(
             recipient_name=request.name,
@@ -654,7 +648,6 @@ def merge_saved_preferences(request: DigestRequest, saved: dict) -> DigestReques
         top_n=request.top_n or int(saved.get("top_n", 10)),
         profile_name=request.profile_name or saved.get("profile_name"),
         use_llm=request.use_llm,
-        gemini_api_key=request.gemini_api_key,
         preferred_sources=request.preferred_sources or saved.get("preferred_sources", []),
         preferred_kinds=request.preferred_kinds or saved.get("preferred_kinds", []),
         keywords=request.keywords or saved.get("keywords", []),
