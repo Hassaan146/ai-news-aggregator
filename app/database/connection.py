@@ -31,7 +31,7 @@ def get_database_url() -> str:
     """Return the configured database URL."""
 
     if database_url := os.getenv("DATABASE_URL"):
-        return database_url
+        return normalize_database_url(database_url)
 
     user = os.getenv("POSTGRES_USER", DEFAULT_POSTGRES_USER)
     password = os.getenv("POSTGRES_PASSWORD", DEFAULT_POSTGRES_PASSWORD)
@@ -39,6 +39,19 @@ def get_database_url() -> str:
     host = os.getenv("POSTGRES_HOST", DEFAULT_POSTGRES_HOST)
     port = os.getenv("POSTGRES_PORT", DEFAULT_POSTGRES_PORT)
     return f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db_name}"
+
+
+def normalize_database_url(database_url: str) -> str:
+    """Normalize common hosted Postgres URL formats for SQLAlchemy."""
+
+    database_url = database_url.strip().strip("\"'")
+    if database_url.startswith("DATABASE_URL="):
+        database_url = database_url.split("=", 1)[1].strip().strip("\"'")
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql+psycopg2://", 1)
+    elif database_url.startswith("postgresql://"):
+        database_url = database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+    return database_url
 
 
 def ensure_sqlite_directory(database_url: str) -> None:
