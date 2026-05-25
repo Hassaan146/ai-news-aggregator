@@ -5,7 +5,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -17,10 +18,14 @@ from app.database.repository import (
     create_payment_subscription,
     create_payment_transaction,
     get_payment_subscription_by_checkout_session_id,
+    get_user,
+    get_user_by_email,
     upsert_user,
+    update_user_preferences,
 )
 from app.profiles.user_profile import PROFILES, UserProfile, get_profile
 from app.services.aggregator_surface import get_top_digests
+from app.services.auth import create_token, hash_password, parse_token, verify_password
 from app.services.email import send_email_digest
 from app.services.payments import (
     construct_webhook_event,
@@ -32,6 +37,7 @@ WEB_DIR = Path(__file__).parent / "web_static"
 
 app = FastAPI(title="AI News Aggregator GUI")
 app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
+security = HTTPBearer(auto_error=False)
 
 
 class DigestRequest(BaseModel):
@@ -75,11 +81,82 @@ class CheckoutRequest(BaseModel):
     email: str = Field(min_length=3)
 
 
+class AuthRequest(BaseModel):
+    """Request for account registration/login."""
+
+    name: str | None = None
+    email: str = Field(min_length=3)
+    password: str = Field(min_length=6)
+    profile_name: str = "default_ai_reader"
+
+
+class PreferencesRequest(DigestRequest):
+    """Saved preference payload for a logged-in user."""
+
+
+def current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+):
+    """Resolve the authenticated user from a bearer token."""
+
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="Missing auth token.")
+    try:
+        payload = parse_token(credentials.credentials)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    with get_session() as session:
+        user = get_user(session, int(payload["user_id"]))
+        if user is None:
+            raise HTTPException(status_code=401, detail="User not found.")
+        session.expunge(user)
+        return user
+
+
 @app.get("/")
 def index() -> FileResponse:
     """Serve the local test GUI."""
 
     return FileResponse(WEB_DIR / "index.html")
+
+
+@app.post("/api/auth/register")
+def register(request: AuthRequest) -> dict:
+    """Register a user account."""
+
+    if not request.name:
+        raise HTTPException(status_code=400, detail="Name is required.")
+    with get_session() as session:
+        existing = get_user_by_email(session, request.email)
+        if existing and existing.password_hash:
+            raise HTTPException(status_code=400, detail="Account already exists.")
+        user = upsert_user(
+            session=session,
+            name=request.name,
+            email=request.email,
+            profile_name=request.profile_name,
+            password_hash=hash_password(request.password),
+            preferences=default_preferences(request.profile_name),
+        )
+        return auth_payload(user)
+
+
+@app.post("/api/auth/login")
+def login(request: AuthRequest) -> dict:
+    """Login with email and password."""
+
+    with get_session() as session:
+        user = get_user_by_email(session, request.email)
+        if user is None or not verify_password(request.password, user.password_hash):
+            raise HTTPException(status_code=401, detail="Invalid email or password.")
+        return auth_payload(user)
+
+
+@app.get("/api/auth/me")
+def me(user=Depends(current_user)) -> dict:
+    """Return the current authenticated user."""
+
+    return user_payload(user)
 
 
 @app.get("/success", response_class=HTMLResponse)
@@ -164,6 +241,55 @@ def create_user(request: UserRequest) -> dict:
                 "profile_name": user.profile_name,
                 "is_active": user.is_active,
             }
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/preferences")
+def get_preferences(user=Depends(current_user)) -> dict:
+    """Return saved preferences for the logged-in user."""
+
+    return {
+        "profile_name": user.profile_name,
+        "preferences": user.preferences or default_preferences(user.profile_name),
+    }
+
+
+@app.post("/api/preferences")
+def save_preferences(request: PreferencesRequest, user=Depends(current_user)) -> dict:
+    """Save digest preferences for the logged-in user."""
+
+    preferences = digest_request_to_preferences(request)
+    with get_session() as session:
+        db_user = get_user(session, user.id)
+        if db_user is None:
+            raise HTTPException(status_code=404, detail="User not found.")
+        update_user_preferences(
+            session=session,
+            user=db_user,
+            profile_name=request.profile_name or "default_ai_reader",
+            preferences=preferences,
+        )
+        return {
+            "profile_name": db_user.profile_name,
+            "preferences": db_user.preferences,
+        }
+
+
+@app.post("/api/dashboard/digests")
+def dashboard_digests(request: DigestRequest, user=Depends(current_user)) -> dict:
+    """Return top digests using the request or saved user preferences."""
+
+    merged = merge_saved_preferences(request, user.preferences or {})
+    try:
+        response = get_top_digests(
+            hours=merged.hours,
+            top_n=merged.top_n,
+            profile=build_profile(merged),
+            use_llm=merged.use_llm,
+            llm_api_key=clean_optional(merged.gemini_api_key),
+        )
+        return response.model_dump(mode="json")
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -331,6 +457,74 @@ def clean_optional(value: str | None) -> str | None:
         return None
     value = value.strip()
     return value or None
+
+
+def auth_payload(user) -> dict:
+    """Return user data with an auth token."""
+
+    return {"token": create_token(user.id), "user": user_payload(user)}
+
+
+def user_payload(user) -> dict:
+    """Serialize a user for the dashboard."""
+
+    return {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "profile_name": user.profile_name,
+        "plan_name": user.plan_name,
+        "subscription_status": user.subscription_status,
+        "preferences": user.preferences or default_preferences(user.profile_name),
+    }
+
+
+def default_preferences(profile_name: str = "default_ai_reader") -> dict:
+    """Default preference payload."""
+
+    profile = get_profile(profile_name)
+    return {
+        "hours": 24,
+        "top_n": 10,
+        "profile_name": profile.name,
+        "use_llm": True,
+        "preferred_sources": list(profile.preferred_sources),
+        "preferred_kinds": list(profile.preferred_kinds),
+        "keywords": list(profile.keywords),
+        "excluded_keywords": list(profile.excluded_keywords),
+    }
+
+
+def digest_request_to_preferences(request: DigestRequest) -> dict:
+    """Convert a digest request into stored preferences."""
+
+    return {
+        "hours": request.hours,
+        "top_n": request.top_n,
+        "profile_name": request.profile_name or "default_ai_reader",
+        "use_llm": request.use_llm,
+        "preferred_sources": request.preferred_sources,
+        "preferred_kinds": request.preferred_kinds,
+        "keywords": request.keywords,
+        "excluded_keywords": request.excluded_keywords,
+    }
+
+
+def merge_saved_preferences(request: DigestRequest, saved: dict) -> DigestRequest:
+    """Fill empty request fields from saved user preferences."""
+
+    return DigestRequest(
+        hours=request.hours or int(saved.get("hours", 24)),
+        top_n=request.top_n or int(saved.get("top_n", 10)),
+        profile_name=request.profile_name or saved.get("profile_name"),
+        use_llm=request.use_llm,
+        gemini_api_key=request.gemini_api_key,
+        preferred_sources=request.preferred_sources or saved.get("preferred_sources", []),
+        preferred_kinds=request.preferred_kinds or saved.get("preferred_kinds", []),
+        keywords=request.keywords or saved.get("keywords", []),
+        excluded_keywords=request.excluded_keywords
+        or saved.get("excluded_keywords", []),
+    )
 
 
 def complete_checkout_success(session_id: str) -> str:

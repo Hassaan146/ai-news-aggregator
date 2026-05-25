@@ -134,13 +134,25 @@ py -m app.email_runner --to your_user@gmail.com --hours 24 --top-n 10 --send --n
 
 ## Basic Local GUI
 
-Run the test GUI:
+Run the backend API:
 
 ```powershell
 py -m uvicorn app.web:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-Then open:
+Run the React frontend:
+
+```powershell
+node "C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js" run dev
+```
+
+Then open the live website:
+
+```text
+http://127.0.0.1:5173
+```
+
+The legacy backend-served page remains available at:
 
 ```text
 http://127.0.0.1:8000

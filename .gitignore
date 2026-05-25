@@ -14,6 +14,8 @@ dist/
 build/
 *.egg-info/
 *.egg
+node_modules/
+dist/
 
 # Environment variables
 .env

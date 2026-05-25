@@ -50,17 +50,42 @@ def upsert_user(
     name: str,
     email: str,
     profile_name: str = "default_ai_reader",
+    password_hash: str | None = None,
+    preferences: dict | None = None,
 ) -> User:
     """Create or update a user by email."""
 
     normalized_email = validate_email_address(email)
     user = get_user_by_email(session, normalized_email)
     if user is None:
-        return create_user(session, name, normalized_email, profile_name)
+        user = create_user(session, name, normalized_email, profile_name)
+        user.password_hash = password_hash
+        user.preferences = preferences or {}
+        session.flush()
+        return user
 
     user.name = name.strip()
     user.profile_name = profile_name
+    if password_hash is not None:
+        user.password_hash = password_hash
+    if preferences is not None:
+        user.preferences = preferences
     user.is_active = True
+    user.updated_at = datetime.now(UTC)
+    session.flush()
+    return user
+
+
+def update_user_preferences(
+    session: Session,
+    user: User,
+    profile_name: str,
+    preferences: dict,
+) -> User:
+    """Update one user's saved digest preferences."""
+
+    user.profile_name = profile_name
+    user.preferences = preferences
     user.updated_at = datetime.now(UTC)
     session.flush()
     return user
