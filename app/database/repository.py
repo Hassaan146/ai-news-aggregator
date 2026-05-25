@@ -9,7 +9,14 @@ from typing import TYPE_CHECKING, Iterable
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from .models import DigestItem, NewsItem, SourceRun, User
+from .models import (
+    DigestItem,
+    NewsItem,
+    PaymentSubscription,
+    PaymentTransaction,
+    SourceRun,
+    User,
+)
 
 if TYPE_CHECKING:
     from app.services.models import ProcessedItem
@@ -55,6 +62,23 @@ def upsert_user(
     return user
 
 
+def update_user_subscription_status(
+    session: Session,
+    user: User,
+    plan_name: str,
+    subscription_status: str,
+    stripe_customer_id: str | None = None,
+) -> User:
+    """Update account-level plan and subscription state."""
+
+    user.plan_name = plan_name
+    user.subscription_status = subscription_status
+    user.stripe_customer_id = stripe_customer_id or user.stripe_customer_id
+    user.updated_at = datetime.now(UTC)
+    session.flush()
+    return user
+
+
 def get_user(session: Session, user_id: int) -> User | None:
     """Return one user by id."""
 
@@ -73,6 +97,149 @@ def list_active_users(session: Session) -> list[User]:
 
     statement = select(User).where(User.is_active.is_(True)).order_by(User.created_at)
     return list(session.execute(statement).scalars())
+
+
+def create_payment_subscription(
+    session: Session,
+    user: User,
+    plan_name: str,
+    status: str,
+    mode: str = "subscription",
+    amount_cents: int = 0,
+    currency: str = "usd",
+    interval: str | None = "month",
+    stripe_customer_id: str | None = None,
+    stripe_subscription_id: str | None = None,
+    stripe_checkout_session_id: str | None = None,
+    raw_payload: dict | None = None,
+) -> PaymentSubscription:
+    """Create or update a subscription row for a user."""
+
+    subscription = None
+    if stripe_checkout_session_id:
+        statement = select(PaymentSubscription).where(
+            PaymentSubscription.stripe_checkout_session_id == stripe_checkout_session_id
+        )
+        subscription = session.execute(statement).scalar_one_or_none()
+    if subscription is None and stripe_subscription_id:
+        statement = select(PaymentSubscription).where(
+            PaymentSubscription.stripe_subscription_id == stripe_subscription_id
+        )
+        subscription = session.execute(statement).scalar_one_or_none()
+
+    now = datetime.now(UTC)
+    if subscription is None:
+        subscription = PaymentSubscription(
+            user_id=user.id,
+            plan_name=plan_name,
+            status=status,
+            mode=mode,
+            amount_cents=amount_cents,
+            currency=currency,
+            interval=interval,
+            stripe_customer_id=stripe_customer_id,
+            stripe_subscription_id=stripe_subscription_id,
+            stripe_checkout_session_id=stripe_checkout_session_id,
+            started_at=now if status in {"active", "trialing"} else None,
+            raw_payload=raw_payload or {},
+        )
+        session.add(subscription)
+    else:
+        subscription.plan_name = plan_name
+        subscription.status = status
+        subscription.mode = mode
+        subscription.amount_cents = amount_cents
+        subscription.currency = currency
+        subscription.interval = interval
+        subscription.stripe_customer_id = stripe_customer_id
+        subscription.stripe_subscription_id = stripe_subscription_id
+        subscription.stripe_checkout_session_id = stripe_checkout_session_id
+        subscription.raw_payload = raw_payload or {}
+        subscription.updated_at = now
+        if status in {"active", "trialing"} and subscription.started_at is None:
+            subscription.started_at = now
+
+    update_user_subscription_status(
+        session=session,
+        user=user,
+        plan_name=plan_name,
+        subscription_status=status,
+        stripe_customer_id=stripe_customer_id,
+    )
+    session.flush()
+    return subscription
+
+
+def create_payment_transaction(
+    session: Session,
+    user: User,
+    status: str,
+    amount_cents: int = 0,
+    currency: str = "usd",
+    subscription: PaymentSubscription | None = None,
+    stripe_payment_intent_id: str | None = None,
+    stripe_invoice_id: str | None = None,
+    stripe_checkout_session_id: str | None = None,
+    raw_payload: dict | None = None,
+) -> PaymentTransaction:
+    """Create a payment transaction row."""
+
+    transaction = PaymentTransaction(
+        user_id=user.id,
+        subscription_id=subscription.id if subscription else None,
+        status=status,
+        amount_cents=amount_cents,
+        currency=currency,
+        stripe_payment_intent_id=stripe_payment_intent_id,
+        stripe_invoice_id=stripe_invoice_id,
+        stripe_checkout_session_id=stripe_checkout_session_id,
+        paid_at=datetime.now(UTC) if status in {"paid", "complete"} else None,
+        raw_payload=raw_payload or {},
+    )
+    session.add(transaction)
+    session.flush()
+    return transaction
+
+
+def get_payment_subscription_by_checkout_session_id(
+    session: Session,
+    checkout_session_id: str,
+) -> PaymentSubscription | None:
+    """Return a subscription by Stripe Checkout Session id."""
+
+    statement = select(PaymentSubscription).where(
+        PaymentSubscription.stripe_checkout_session_id == checkout_session_id
+    )
+    return session.execute(statement).scalar_one_or_none()
+
+
+def activate_payment_subscription(
+    session: Session,
+    subscription: PaymentSubscription,
+    stripe_customer_id: str | None = None,
+    stripe_subscription_id: str | None = None,
+    raw_payload: dict | None = None,
+) -> PaymentSubscription:
+    """Mark a subscription active and mirror the status onto the user."""
+
+    now = datetime.now(UTC)
+    subscription.status = "active"
+    subscription.started_at = subscription.started_at or now
+    subscription.stripe_customer_id = stripe_customer_id or subscription.stripe_customer_id
+    subscription.stripe_subscription_id = (
+        stripe_subscription_id or subscription.stripe_subscription_id
+    )
+    subscription.raw_payload = raw_payload or subscription.raw_payload
+    subscription.updated_at = now
+    update_user_subscription_status(
+        session=session,
+        user=subscription.user,
+        plan_name=subscription.plan_name,
+        subscription_status="active",
+        stripe_customer_id=subscription.stripe_customer_id,
+    )
+    session.flush()
+    return subscription
 
 
 def validate_gmail_address(email: str) -> str:

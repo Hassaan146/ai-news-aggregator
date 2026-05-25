@@ -158,15 +158,35 @@ payment:
 STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key_here
 STRIPE_CHECKOUT_MODE=subscription
 STRIPE_PRICE_ID=
-STRIPE_AMOUNT_CENTS=500
+STRIPE_AMOUNT_CENTS=0
 STRIPE_CURRENCY=usd
 STRIPE_INTERVAL=month
 STRIPE_PRODUCT_NAME=AI News Daily Email Plan
 ```
 
 Use a Stripe test secret key while developing. Your payout/bank account is set
-inside the Stripe Dashboard, not inside this app. If `STRIPE_PRICE_ID` is empty,
-the app creates inline price data from the amount/currency/interval values.
+inside the Stripe Dashboard, not inside this app. If `STRIPE_AMOUNT_CENTS=0` and
+`STRIPE_PRICE_ID` is empty, the app creates a local free test subscription and
+activates email delivery without collecting a card. For a real Stripe Checkout
+test payment, create a recurring Price in Stripe, set `STRIPE_PRICE_ID`, and use
+Stripe's test card numbers on the hosted checkout page.
+
+For the current free demo subscription flow:
+
+1. Keep `STRIPE_CHECKOUT_MODE=subscription`.
+2. Keep `STRIPE_AMOUNT_CENTS=0`.
+3. Leave `STRIPE_PRICE_ID=` empty.
+4. Use the website's Stripe plan form with the demo Gmail address.
+5. The app creates a local active subscription and sends the demo digest email
+   after the success page opens.
+
+For a real Stripe-hosted test payment:
+
+1. Create a Product and recurring Price in Stripe test mode.
+2. Put that Price id in `.env` as `STRIPE_PRICE_ID=price_...`.
+3. Use the Checkout button on the website.
+4. Pay with Stripe test card `4242 4242 4242 4242`, any future expiry, and any
+   CVC.
 
 Step 3 will improve the production UI design after the test flow is working.
 
