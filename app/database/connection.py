@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import os
+import re
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
+from urllib.parse import urlsplit, urlunsplit
 
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
@@ -45,13 +47,37 @@ def normalize_database_url(database_url: str) -> str:
     """Normalize common hosted Postgres URL formats for SQLAlchemy."""
 
     database_url = database_url.strip().strip("\"'")
-    if database_url.startswith("DATABASE_URL="):
+    database_url = re.sub(r"^export\s+", "", database_url).strip()
+    if database_url.startswith("psql "):
+        match = re.search(r"['\"]([^'\"]+)['\"]", database_url)
+        if match:
+            database_url = match.group(1)
+    if re.match(r"^DATABASE_URL\s*=", database_url):
         database_url = database_url.split("=", 1)[1].strip().strip("\"'")
     if database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql+psycopg2://", 1)
     elif database_url.startswith("postgresql://"):
         database_url = database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
     return database_url
+
+
+def mask_database_url(database_url: str) -> str:
+    """Return a safe database URL preview for deployment diagnostics."""
+
+    database_url = normalize_database_url(database_url)
+    try:
+        parts = urlsplit(database_url)
+    except ValueError:
+        return f"unparseable prefix={database_url[:20]!r} length={len(database_url)}"
+
+    netloc = parts.netloc
+    if "@" in netloc:
+        credentials, host = netloc.rsplit("@", 1)
+        username = credentials.split(":", 1)[0]
+        netloc = f"{username}:***@{host}"
+
+    safe_url = urlunsplit((parts.scheme, netloc, parts.path, parts.query, ""))
+    return f"{safe_url[:120]} length={len(database_url)}"
 
 
 def ensure_sqlite_directory(database_url: str) -> None:
