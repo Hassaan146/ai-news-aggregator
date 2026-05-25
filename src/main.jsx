@@ -498,6 +498,14 @@ function Dashboard({ user, token, onLogout, onUser }) {
   const [prefs, setPrefs] = useState(user.preferences || defaultPrefs);
   const [digests, setDigests] = useState(null);
   const [message, setMessage] = useState("");
+  const [showGuide, setShowGuide] = useState(() => {
+    return localStorage.getItem(`asme_guide_seen_${user.id}`) !== "1";
+  });
+
+  function closeGuide() {
+    localStorage.setItem(`asme_guide_seen_${user.id}`, "1");
+    setShowGuide(false);
+  }
 
   async function savePrefs() {
     setMessage("Saving preferences...");
@@ -588,7 +596,96 @@ function Dashboard({ user, token, onLogout, onUser }) {
           )}
         </section>
       </div>
+      {showGuide && (
+        <GuideModal
+          onClose={closeGuide}
+          onStart={() => {
+            setPage("preferences");
+            closeGuide();
+          }}
+        />
+      )}
     </main>
+  );
+}
+
+function GuideModal({ onClose, onStart }) {
+  const steps = [
+    {
+      title: "Choose priorities",
+      text: "Start with a preset, then select the sources and topics you care about. This tells the ranking system what to prefer.",
+    },
+    {
+      title: "Generate a digest",
+      text: "Open Digest maker, choose how many hours and how many articles you want, then generate your ranked news list.",
+    },
+    {
+      title: "Subscribe for emails",
+      text: "Use the Subscription page to connect Stripe Checkout. Subscribed users can receive the daily 24-hour email digest.",
+    },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 px-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="liquid-glass w-full max-w-4xl rounded-[32px] p-7"
+      >
+        <div className="flex items-start justify-between gap-6">
+          <div>
+            <p className="text-white/50 text-xs uppercase tracking-[0.2em]">
+              Quick guide
+            </p>
+            <h2
+              style={{ fontFamily: "'Instrument Serif', serif" }}
+              className="mt-2 text-4xl md:text-5xl leading-tight"
+            >
+              Here is how to use Asme
+            </h2>
+            <p className="mt-4 max-w-2xl text-white/65 leading-7">
+              The app has three simple areas: priorities, digest making, and
+              subscription. Follow these once and the workflow becomes natural.
+            </p>
+          </div>
+          <button className="text-white/60 hover:text-white" onClick={onClose} type="button">
+            Skip
+          </button>
+        </div>
+
+        <div className="mt-7 grid md:grid-cols-3 gap-3">
+          {steps.map((step, index) => (
+            <div
+              key={step.title}
+              className="rounded-3xl border border-white/15 bg-white/[0.07] p-5"
+            >
+              <div className="mb-4 grid h-10 w-10 place-items-center rounded-full bg-white text-black font-semibold">
+                {index + 1}
+              </div>
+              <h3 className="font-semibold text-lg">{step.title}</h3>
+              <p className="mt-2 text-sm leading-6 text-white/60">{step.text}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-7 flex flex-wrap gap-3">
+          <button
+            className="rounded-full bg-white px-6 py-3 font-semibold text-black"
+            onClick={onStart}
+            type="button"
+          >
+            Start with priorities
+          </button>
+          <button
+            className="rounded-full border border-white/15 px-6 py-3 font-semibold text-white/80"
+            onClick={onClose}
+            type="button"
+          >
+            I know what to do
+          </button>
+        </div>
+      </motion.div>
+    </div>
   );
 }
 
