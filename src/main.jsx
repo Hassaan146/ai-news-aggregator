@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AnimatePresence, motion } from "motion/react";
 import Hls from "hls.js";
@@ -31,6 +31,53 @@ const defaultPrefs = {
   keywords: ["openai", "anthropic", "agents", "llm"],
   excluded_keywords: [],
 };
+
+const profileOptions = [
+  {
+    id: "default_ai_reader",
+    title: "Balanced AI reader",
+    text: "OpenAI, Anthropic, DeepMind, agents, research, and major product updates.",
+  },
+  {
+    id: "openai_anthropic",
+    title: "OpenAI + Anthropic",
+    text: "Focused tracking for ChatGPT, Claude, model launches, and safety updates.",
+  },
+  {
+    id: "builders",
+    title: "Builder mode",
+    text: "Developer tools, APIs, agents, RAG, open source, and implementation ideas.",
+  },
+];
+
+const sourceOptions = [
+  "OpenAI News",
+  "OpenAI Blog",
+  "Anthropic News",
+  "Google DeepMind News",
+  "Hugging Face Blog",
+  "TechCrunch AI",
+  "The Verge AI",
+  "VentureBeat AI",
+];
+
+const keywordOptions = [
+  "openai",
+  "anthropic",
+  "agents",
+  "llm",
+  "rag",
+  "api",
+  "research",
+  "safety",
+  "multimodal",
+  "open source",
+];
+
+const contentTypeOptions = [
+  ["article", "Articles"],
+  ["youtube_video", "YouTube"],
+];
 
 function BackgroundVideo() {
   const videoRef = useRef(null);
@@ -274,9 +321,9 @@ function InfoModal({ type, onClose, onOpenAuth }) {
       title: "A personal operating layer for AI news",
       body: "Asme combines source scraping, AI summarization, preference ranking, subscriptions, and email delivery into one workflow for builders tracking fast-moving AI updates.",
       items: [
-        ["Profile priorities", "Save preferred sources, content types, keywords, and excluded terms for each user."],
-        ["Digest maker", "Choose top-N articles from a custom time window and rank them with LLM fallback logic."],
-        ["Daily email agent", "Subscribed users receive a daily 24-hour digest using the same ranking surface."],
+        ["Priorities dashboard", "Pick profiles, sources, keywords, and content types with simple controls instead of raw setup."],
+        ["Digest maker", "Choose top-N articles from any time window and rank them with LLM-based ranking plus deterministic fallback."],
+        ["Subscription email agent", "Subscribed users get a daily 24-hour digest using the same saved preferences and ranking surface."],
       ],
     },
     pricing: {
@@ -360,17 +407,25 @@ function AuthModal({ mode, initialEmail, onClose, onAuth }) {
     password: "",
   });
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   useEffect(() => setIsRegister(mode !== "login"), [mode]);
 
   async function submit(event) {
     event.preventDefault();
     setError("");
+    setNotice("");
     try {
       const data = await api(`/api/auth/${isRegister ? "register" : "login"}`, {
         method: "POST",
         body: JSON.stringify(form),
       });
+      if (isRegister) {
+        setNotice("Account created. Please login with the same email and password.");
+        setIsRegister(false);
+        setForm({ ...form, password: "" });
+        return;
+      }
       onAuth(data);
     } catch (err) {
       setError(err.message);
@@ -398,6 +453,7 @@ function AuthModal({ mode, initialEmail, onClose, onAuth }) {
             Close
           </button>
         </div>
+        {notice && <p className="mb-4 rounded-2xl border border-emerald-300/20 bg-emerald-300/10 p-3 text-sm text-emerald-100">{notice}</p>}
         <div className="grid gap-4">
           {isRegister && (
             <Field
@@ -492,70 +548,167 @@ function Dashboard({ user, token, onLogout, onUser }) {
   }
 
   return (
-    <main className="min-h-screen bg-[#050505] text-white dashboard-grid">
-      <aside className="border-r border-white/10 p-5">
-        <div className="flex items-center gap-2 mb-8">
-          <Globe className="w-6 h-6" />
-          <span className="font-semibold text-lg">Asme</span>
-        </div>
-        <nav className="grid gap-2">
-          <NavButton icon={Settings} active={page === "preferences"} onClick={() => setPage("preferences")}>Priorities</NavButton>
-          <NavButton icon={Newspaper} active={page === "digests"} onClick={() => setPage("digests")}>Digest maker</NavButton>
-          <NavButton icon={CreditCard} active={page === "subscription"} onClick={() => setPage("subscription")}>Subscription</NavButton>
-        </nav>
-        <button
-          type="button"
-          className="mt-8 flex items-center gap-2 text-white/50 hover:text-white"
-          onClick={onLogout}
-        >
-          <LogOut className="w-4 h-4" /> Logout
-        </button>
-      </aside>
-      <section className="p-5 md:p-8 overflow-auto">
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-          <div>
-            <p className="text-white/50 text-sm">Logged in as {user.email}</p>
-            <h1 className="text-3xl font-semibold">AI news dashboard</h1>
+    <main className="relative min-h-screen bg-black text-white overflow-hidden">
+      <BackgroundVideo />
+      <div className="absolute inset-0 bg-black/70" />
+      <div className="relative z-10 min-h-screen dashboard-grid p-4 gap-4">
+        <aside className="liquid-glass rounded-[32px] p-5">
+          <div className="flex items-center gap-2 mb-8">
+            <Globe className="w-6 h-6" />
+            <span className="font-semibold text-lg">Asme</span>
           </div>
-          <div className="glass-pill px-4 py-2 text-sm text-white/75">
-            {user.subscription_status || "free"} plan
+          <nav className="grid gap-2">
+            <NavButton icon={Settings} active={page === "preferences"} onClick={() => setPage("preferences")}>Priorities</NavButton>
+            <NavButton icon={Newspaper} active={page === "digests"} onClick={() => setPage("digests")}>Digest maker</NavButton>
+            <NavButton icon={CreditCard} active={page === "subscription"} onClick={() => setPage("subscription")}>Subscription</NavButton>
+          </nav>
+          <button
+            type="button"
+            className="mt-8 flex items-center gap-2 text-white/55 hover:text-white"
+            onClick={onLogout}
+          >
+            <LogOut className="w-4 h-4" /> Logout
+          </button>
+        </aside>
+        <section className="overflow-auto rounded-[32px] border border-white/10 bg-black/35 backdrop-blur-xl p-5 md:p-8">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+            <div>
+              <p className="text-white/50 text-sm">Logged in as {user.email}</p>
+              <h1 className="text-3xl md:text-5xl font-semibold tracking-[-0.03em]">AI news dashboard</h1>
+            </div>
+            <div className="glass-pill px-4 py-2 text-sm text-white/75">
+              {user.subscription_status || "free"} plan
+            </div>
           </div>
-        </div>
-        {message && <div className="mb-5 rounded-2xl bg-white/5 border border-white/10 p-4 text-sm text-white/75">{message}</div>}
-        {page === "preferences" && (
-          <Preferences prefs={prefs} setPrefs={setPrefs} onSave={savePrefs} onRun={loadDigests} />
-        )}
-        {page === "digests" && (
-          <DigestMaker prefs={prefs} setPrefs={setPrefs} onRun={loadDigests} digests={digests} />
-        )}
-        {page === "subscription" && (
-          <Subscription user={user} onCheckout={startCheckout} />
-        )}
-      </section>
+          {message && <div className="mb-5 rounded-2xl bg-white/5 border border-white/10 p-4 text-sm text-white/75">{message}</div>}
+          {page === "preferences" && (
+            <Preferences prefs={prefs} setPrefs={setPrefs} onSave={savePrefs} onRun={loadDigests} />
+          )}
+          {page === "digests" && (
+            <DigestMaker prefs={prefs} setPrefs={setPrefs} onRun={loadDigests} digests={digests} />
+          )}
+          {page === "subscription" && (
+            <Subscription user={user} onCheckout={startCheckout} />
+          )}
+        </section>
+      </div>
     </main>
   );
 }
 
 function Preferences({ prefs, setPrefs, onSave, onRun }) {
+  const [customKeyword, setCustomKeyword] = useState("");
+
+  function applyProfile(profileName) {
+    const profileDefaults = {
+      default_ai_reader: {
+        preferred_sources: ["OpenAI News", "OpenAI Blog", "Anthropic News", "Google DeepMind News", "Hugging Face Blog", "TechCrunch AI"],
+        preferred_kinds: ["article", "youtube_video"],
+        keywords: ["openai", "anthropic", "agents", "llm", "research", "safety"],
+      },
+      openai_anthropic: {
+        preferred_sources: ["OpenAI News", "OpenAI Blog", "Anthropic News"],
+        preferred_kinds: ["article"],
+        keywords: ["openai", "anthropic", "claude", "chatgpt", "model", "agent"],
+      },
+      builders: {
+        preferred_sources: ["Hugging Face Blog", "TechCrunch AI"],
+        preferred_kinds: ["article", "youtube_video"],
+        keywords: ["python", "agent", "rag", "api", "developer", "open source"],
+      },
+    }[profileName];
+    setPrefs({ ...prefs, profile_name: profileName, ...profileDefaults });
+  }
+
+  function addCustomKeyword() {
+    const value = customKeyword.trim().toLowerCase();
+    if (!value) return;
+    setPrefs({ ...prefs, keywords: Array.from(new Set([...(prefs.keywords || []), value])) });
+    setCustomKeyword("");
+  }
+
   return (
-    <Panel title="Enter your priorities" description="Save what this user wants the ranking agent to prefer.">
-      <div className="grid md:grid-cols-2 gap-4">
-        <Select label="Profile" value={prefs.profile_name} onChange={(profile_name) => setPrefs({ ...prefs, profile_name })} options={[
-          ["default_ai_reader", "Default AI reader"],
-          ["openai_anthropic", "OpenAI + Anthropic"],
-          ["builders", "Builders"],
-        ]} />
-        <Toggle label="Use LLM ranking" checked={prefs.use_llm} onChange={(use_llm) => setPrefs({ ...prefs, use_llm })} />
-        <TextArea label="Preferred sources" value={toCsv(prefs.preferred_sources)} onChange={(value) => setPrefs({ ...prefs, preferred_sources: fromCsv(value) })} />
-        <TextArea label="Keywords" value={toCsv(prefs.keywords)} onChange={(value) => setPrefs({ ...prefs, keywords: fromCsv(value) })} />
-        <TextArea label="Content types" value={toCsv(prefs.preferred_kinds)} onChange={(value) => setPrefs({ ...prefs, preferred_kinds: fromCsv(value) })} />
-        <TextArea label="Exclude keywords" value={toCsv(prefs.excluded_keywords)} onChange={(value) => setPrefs({ ...prefs, excluded_keywords: fromCsv(value) })} />
+    <Panel title="Choose what you care about" description="Start from a preset, then tap sources and topics to fine tune the feed.">
+      <div className="grid md:grid-cols-3 gap-3">
+        {profileOptions.map((profile) => (
+          <button
+            key={profile.id}
+            type="button"
+            onClick={() => applyProfile(profile.id)}
+            className={`rounded-3xl border p-4 text-left transition-all ${prefs.profile_name === profile.id ? "border-white/45 bg-white/15" : "border-white/10 bg-white/[0.035] hover:bg-white/[0.07]"}`}
+          >
+            <h3 className="font-semibold">{profile.title}</h3>
+            <p className="mt-2 text-sm leading-6 text-white/55">{profile.text}</p>
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-6 grid gap-6">
+        <ChipGroup
+          title="Sources"
+          values={prefs.preferred_sources || []}
+          options={sourceOptions}
+          onChange={(preferred_sources) => setPrefs({ ...prefs, preferred_sources })}
+        />
+        <ChipGroup
+          title="Topics"
+          values={prefs.keywords || []}
+          options={keywordOptions}
+          onChange={(keywords) => setPrefs({ ...prefs, keywords })}
+        />
+        <div>
+          <label className="text-sm text-white/60">Add custom topic</label>
+          <div className="mt-2 flex gap-2">
+            <input
+              className="flex-1 rounded-full border border-white/10 bg-black/30 px-4 py-3 outline-none text-white"
+              value={customKeyword}
+              onChange={(event) => setCustomKeyword(event.target.value)}
+              placeholder="e.g. robotics, evals, startups"
+            />
+            <button className="rounded-full bg-white px-5 text-black font-semibold" type="button" onClick={addCustomKeyword}>Add</button>
+          </div>
+        </div>
+        <ChipGroup
+          title="Content types"
+          values={prefs.preferred_kinds || []}
+          options={contentTypeOptions.map(([id]) => id)}
+          labels={Object.fromEntries(contentTypeOptions)}
+          onChange={(preferred_kinds) => setPrefs({ ...prefs, preferred_kinds })}
+        />
+        <Toggle label="Use LLM ranking when available" checked={prefs.use_llm} onChange={(use_llm) => setPrefs({ ...prefs, use_llm })} />
       </div>
       <div className="flex gap-3 mt-6">
         <button className="rounded-full bg-white text-black px-5 py-3 font-semibold" onClick={onSave} type="button">Save priorities</button>
         <button className="rounded-full border border-white/15 px-5 py-3 font-semibold" onClick={onRun} type="button">Generate digest</button>
       </div>
     </Panel>
+  );
+}
+
+function ChipGroup({ title, options, values, onChange, labels = {} }) {
+  function toggle(option) {
+    const next = values.includes(option)
+      ? values.filter((item) => item !== option)
+      : [...values, option];
+    onChange(next);
+  }
+
+  return (
+    <div>
+      <h3 className="mb-3 text-sm font-semibold text-white/70">{title}</h3>
+      <div className="flex flex-wrap gap-2">
+        {options.map((option) => (
+          <button
+            key={option}
+            type="button"
+            onClick={() => toggle(option)}
+            className={`rounded-full border px-4 py-2 text-sm transition-colors ${values.includes(option) ? "border-white/50 bg-white text-black" : "border-white/10 bg-white/[0.035] text-white/70 hover:text-white"}`}
+          >
+            {labels[option] || option}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -615,7 +768,7 @@ function Subscription({ user, onCheckout }) {
 
 function Panel({ title, description, children }) {
   return (
-    <section className="rounded-[30px] border border-white/10 bg-white/[0.035] p-6">
+    <section className="liquid-glass rounded-[30px] p-6">
       <h2 className="text-2xl font-semibold">{title}</h2>
       <p className="mt-2 mb-6 text-white/55">{description}</p>
       {children}
