@@ -158,27 +158,31 @@ payment:
 STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key_here
 STRIPE_CHECKOUT_MODE=subscription
 STRIPE_PRICE_ID=
-STRIPE_AMOUNT_CENTS=100
+STRIPE_AMOUNT_CENTS=0
 STRIPE_CURRENCY=usd
 STRIPE_INTERVAL=month
 STRIPE_PRODUCT_NAME=AI News Daily Email Plan
 ```
 
-Use a Stripe test secret key while developing. Your payout/bank account is set
-inside the Stripe Dashboard, not inside this app. With `STRIPE_AMOUNT_CENTS=100`
-and an empty `STRIPE_PRICE_ID`, the app creates an inline `$1.00/month` test
-subscription and redirects to Stripe Checkout for secure card entry.
+Use a Stripe key from the correct environment while developing. Your payout/bank
+account is set inside the Stripe Dashboard, not inside this app. With
+`STRIPE_AMOUNT_CENTS=0` and an empty `STRIPE_PRICE_ID`, the app creates a Stripe
+Checkout `setup` session. That opens Stripe's secure card form, saves/validates a
+payment method, and does not charge the card.
 
 For a Stripe-hosted demo payment:
 
 1. Keep `STRIPE_CHECKOUT_MODE=subscription`.
-2. Keep `STRIPE_AMOUNT_CENTS=100`, or set your own small test amount.
-3. Leave `STRIPE_PRICE_ID=` empty, or set a real recurring `price_...` id.
+2. Keep `STRIPE_AMOUNT_CENTS=0`.
+3. Leave `STRIPE_PRICE_ID=` empty.
 4. Use the website's `Try payment` button.
-5. Pay on Stripe Checkout with test card `4242 4242 4242 4242`, any future
-   expiry, and any CVC.
+5. Enter the card on Stripe's secure page.
 6. After Stripe redirects back, the app activates the subscription and sends the
    demo digest email.
+
+If you are using a Stripe test key, use Stripe test card `4242 4242 4242 4242`,
+any future expiry, and any CVC. Do not use real card details with Stripe test
+keys.
 
 Step 3 will improve the production UI design after the test flow is working.
 

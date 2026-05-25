@@ -38,19 +38,16 @@ def create_checkout_session(
         raise RuntimeError("STRIPE_CHECKOUT_MODE must be subscription or payment.")
 
     if amount <= 0 and not price_id:
-        session_id = f"free_test_{uuid4().hex}"
-        success_url = success_url.replace("{CHECKOUT_SESSION_ID}", session_id)
-        separator = "&" if "?" in success_url else "?"
-        return {
-            "id": session_id,
-            "url": f"{success_url}{separator}free_plan=1",
-            "free_plan": True,
-            "mode": mode,
-            "plan_name": product_name,
-            "amount_cents": 0,
-            "currency": currency,
-            "interval": interval if mode == "subscription" else None,
-        }
+        return create_setup_checkout_session(
+            customer_email=customer_email,
+            customer_name=customer_name,
+            success_url=success_url,
+            cancel_url=cancel_url,
+            currency=currency,
+            mode=mode,
+            product_name=product_name,
+            interval=interval,
+        )
 
     secret_key = os.getenv("STRIPE_SECRET_KEY")
     if not secret_key or secret_key == "sk_test_your_stripe_secret_key_here":
@@ -82,12 +79,59 @@ def create_checkout_session(
         "id": session.id,
         "url": session.url,
         "free_plan": False,
+        "setup_mode": False,
         "mode": mode,
         "plan_name": product_name,
         "amount_cents": amount,
         "currency": currency,
         "interval": interval if mode == "subscription" else None,
         "stripe_customer_id": session.customer,
+    }
+
+
+def create_setup_checkout_session(
+    customer_email: str,
+    customer_name: str,
+    success_url: str,
+    cancel_url: str,
+    currency: str,
+    mode: str,
+    product_name: str,
+    interval: str,
+) -> dict:
+    """Create a Stripe setup-mode Checkout Session for $0 card collection."""
+
+    secret_key = os.getenv("STRIPE_SECRET_KEY")
+    if not secret_key or secret_key == "sk_test_your_stripe_secret_key_here":
+        raise RuntimeError("Missing real STRIPE_SECRET_KEY in .env.")
+
+    stripe.api_key = secret_key
+    customer = stripe.Customer.create(email=customer_email, name=customer_name)
+    session = stripe.checkout.Session.create(
+        mode="setup",
+        currency=currency,
+        customer=customer.id,
+        payment_method_types=["card"],
+        success_url=success_url,
+        cancel_url=cancel_url,
+        metadata={
+            "customer_name": customer_name,
+            "customer_email": customer_email,
+            "product": "ai_news_email_plan",
+            "configured_mode": mode,
+        },
+    )
+    return {
+        "id": session.id,
+        "url": session.url,
+        "free_plan": False,
+        "setup_mode": True,
+        "mode": mode,
+        "plan_name": product_name,
+        "amount_cents": 0,
+        "currency": currency,
+        "interval": interval if mode == "subscription" else None,
+        "stripe_customer_id": customer.id,
     }
 
 

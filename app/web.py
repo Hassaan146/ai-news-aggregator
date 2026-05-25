@@ -255,7 +255,7 @@ def checkout(request: CheckoutRequest, http_request: Request) -> dict:
                 session=session,
                 user=user,
                 plan_name=checkout_session["plan_name"],
-                status="active" if checkout_session["free_plan"] else "pending",
+                status="pending_setup" if checkout_session["setup_mode"] else "pending",
                 mode=checkout_session["mode"],
                 amount_cents=checkout_session["amount_cents"],
                 currency=checkout_session["currency"],
@@ -264,17 +264,6 @@ def checkout(request: CheckoutRequest, http_request: Request) -> dict:
                 stripe_checkout_session_id=checkout_session["id"],
                 raw_payload=checkout_session,
             )
-            if checkout_session["free_plan"]:
-                create_payment_transaction(
-                    session=session,
-                    user=user,
-                    status="paid",
-                    amount_cents=0,
-                    currency=checkout_session["currency"],
-                    subscription=subscription,
-                    stripe_checkout_session_id=checkout_session["id"],
-                    raw_payload=checkout_session,
-                )
         return checkout_session
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -323,10 +312,10 @@ def complete_checkout_success(session_id: str) -> str:
     checkout_payload = None
     stripe_customer_id = None
     stripe_subscription_id = None
-    if not session_id.startswith("free_test_"):
-        checkout_payload = retrieve_checkout_session(session_id)
-        stripe_customer_id = checkout_payload.customer
-        stripe_subscription_id = checkout_payload.subscription
+    checkout_payload = retrieve_checkout_session(session_id)
+    stripe_customer_id = checkout_payload.customer
+    stripe_subscription_id = checkout_payload.subscription
+    setup_intent_id = checkout_payload.setup_intent
 
     with get_session() as session:
         subscription = get_payment_subscription_by_checkout_session_id(
@@ -346,12 +335,12 @@ def complete_checkout_success(session_id: str) -> str:
         create_payment_transaction(
             session=session,
             user=subscription.user,
-            status="paid",
+            status="setup_complete" if setup_intent_id else "paid",
             amount_cents=subscription.amount_cents,
             currency=subscription.currency,
             subscription=subscription,
             stripe_checkout_session_id=session_id,
-            raw_payload=checkout_payload.to_dict() if checkout_payload else {},
+            raw_payload=checkout_payload.to_dict(),
         )
         email_address = subscription.user.email
         name = subscription.user.name
