@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -11,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
 
 from app.agent.email_agent import EmailAgent
@@ -52,6 +53,9 @@ from app.services.payments import (
 from app.services.process_digest_items import process_digest_items
 
 WEB_DIR = Path(__file__).parent / "web_static"
+ALLOWED_CONTENT_TYPES = {"article", "youtube_video"}
+EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+SAFE_TEXT_RE = re.compile(r"^[\w\s.#/+&():,'-]+$")
 DEFAULT_CORS_ORIGIN_REGEX = (
     r"^https://.*\.vercel\.app$|"
     r"^https://.*\.onrender\.com$|"
@@ -128,54 +132,199 @@ async def validation_exception_handler(
     )
 
 
+def clean_limited_text(value: str | None, field_name: str, max_length: int) -> str:
+    """Normalize short user text and reject risky characters."""
+
+    text_value = (value or "").strip()
+    if not text_value:
+        raise ValueError(f"{field_name} is required.")
+    if len(text_value) > max_length:
+        raise ValueError(f"{field_name} must be {max_length} characters or fewer.")
+    if not SAFE_TEXT_RE.fullmatch(text_value):
+        raise ValueError(f"{field_name} contains unsupported characters.")
+    return text_value
+
+
+def clean_optional_limited_text(
+    value: str | None,
+    field_name: str,
+    max_length: int,
+) -> str | None:
+    """Normalize optional short user text."""
+
+    if value is None:
+        return None
+    text_value = value.strip()
+    if not text_value:
+        return None
+    return clean_limited_text(text_value, field_name, max_length)
+
+
+def clean_email(value: str) -> str:
+    """Normalize and validate an email address."""
+
+    email = (value or "").strip().lower()
+    if len(email) > 254 or not EMAIL_RE.fullmatch(email):
+        raise ValueError("Please enter a valid email address.")
+    return email
+
+
+def clean_text_list(
+    values: list[str],
+    field_name: str,
+    max_items: int,
+    max_length: int,
+) -> list[str]:
+    """Normalize user preference lists while preserving order."""
+
+    if len(values) > max_items:
+        raise ValueError(f"{field_name} can contain at most {max_items} items.")
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text_value = clean_limited_text(str(value), field_name, max_length)
+        key = text_value.lower()
+        if key not in seen:
+            cleaned.append(text_value)
+            seen.add(key)
+    return cleaned
+
+
+def clean_public_text(value: str | None, field_name: str, max_length: int) -> str:
+    """Normalize longer public text while blocking obvious markup/control input."""
+
+    text_value = (value or "").strip()
+    if len(text_value) > max_length:
+        raise ValueError(f"{field_name} must be {max_length} characters or fewer.")
+    if any(character in text_value for character in "<>"):
+        raise ValueError(f"{field_name} cannot contain HTML markup.")
+    if any(ord(character) < 32 and character not in "\n\r\t" for character in text_value):
+        raise ValueError(f"{field_name} contains unsupported control characters.")
+    return text_value
+
+
 class DigestRequest(BaseModel):
     """Request for personalized digest results."""
 
     hours: int = Field(default=72, ge=1, le=72)
     top_n: int = Field(default=10, ge=1, le=10)
-    profile_name: str | None = "default_ai_reader"
+    profile_name: str | None = Field(default="default_ai_reader", max_length=80)
     use_llm: bool = True
-    preferred_sources: list[str] = Field(default_factory=list)
-    preferred_kinds: list[str] = Field(default_factory=list)
-    keywords: list[str] = Field(default_factory=list)
-    excluded_keywords: list[str] = Field(default_factory=list)
+    preferred_sources: list[str] = Field(default_factory=list, max_length=20)
+    preferred_kinds: list[str] = Field(default_factory=list, max_length=2)
+    keywords: list[str] = Field(default_factory=list, max_length=20)
+    excluded_keywords: list[str] = Field(default_factory=list, max_length=20)
     generate_missing_digests: bool = True
+
+    @field_validator("profile_name")
+    @classmethod
+    def validate_profile_name(cls, value: str | None) -> str:
+        return clean_optional_limited_text(value, "Profile name", 80) or "default_ai_reader"
+
+    @field_validator("preferred_sources")
+    @classmethod
+    def validate_sources(cls, values: list[str]) -> list[str]:
+        return clean_text_list(values, "Preferred sources", 20, 120)
+
+    @field_validator("preferred_kinds")
+    @classmethod
+    def validate_kinds(cls, values: list[str]) -> list[str]:
+        cleaned = clean_text_list(values, "Content types", 2, 40)
+        invalid = [value for value in cleaned if value not in ALLOWED_CONTENT_TYPES]
+        if invalid:
+            raise ValueError("Please choose a valid content type.")
+        return cleaned
+
+    @field_validator("keywords", "excluded_keywords")
+    @classmethod
+    def validate_keywords(cls, values: list[str]) -> list[str]:
+        return clean_text_list(values, "Keywords", 20, 40)
 
 
 class UserRequest(BaseModel):
     """Request to create/update a user account."""
 
-    name: str = Field(min_length=1)
-    email: str = Field(min_length=3)
-    profile_name: str = "default_ai_reader"
+    name: str = Field(min_length=1, max_length=80)
+    email: str = Field(min_length=3, max_length=254)
+    profile_name: str = Field(default="default_ai_reader", max_length=80)
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        return clean_limited_text(value, "Name", 80)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return clean_email(value)
+
+    @field_validator("profile_name")
+    @classmethod
+    def validate_profile_name(cls, value: str) -> str:
+        return clean_limited_text(value, "Profile name", 80)
 
 
 class EmailPreviewRequest(DigestRequest):
     """Request for a rendered email preview."""
 
-    name: str = "Sample User"
+    name: str = Field(default="Sample User", min_length=1, max_length=80)
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        return clean_limited_text(value, "Name", 80)
 
 
 class EmailSendRequest(EmailPreviewRequest):
     """Request to send a rendered email to a Gmail user."""
 
-    email: str = Field(min_length=3)
+    email: str = Field(min_length=3, max_length=254)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return clean_email(value)
 
 
 class CheckoutRequest(BaseModel):
     """Request for starting a paid Stripe Checkout session."""
 
-    name: str = Field(min_length=1)
-    email: str = Field(min_length=3)
+    name: str = Field(min_length=1, max_length=80)
+    email: str = Field(min_length=3, max_length=254)
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        return clean_limited_text(value, "Name", 80)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return clean_email(value)
 
 
 class AuthRequest(BaseModel):
     """Request for account registration/login."""
 
-    name: str | None = None
-    email: str = Field(min_length=3)
-    password: str = Field(min_length=6)
-    profile_name: str = "default_ai_reader"
+    name: str | None = Field(default=None, max_length=80)
+    email: str = Field(min_length=3, max_length=254)
+    password: str = Field(min_length=6, max_length=128)
+    profile_name: str = Field(default="default_ai_reader", max_length=80)
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str | None) -> str | None:
+        return clean_optional_limited_text(value, "Name", 80)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return clean_email(value)
+
+    @field_validator("profile_name")
+    @classmethod
+    def validate_profile_name(cls, value: str) -> str:
+        return clean_limited_text(value, "Profile name", 80)
 
 
 class PreferencesRequest(DigestRequest):
@@ -187,6 +336,11 @@ class ReviewRequest(BaseModel):
 
     rating: int = Field(ge=1, le=5)
     review_text: str = Field(default="", max_length=2000)
+
+    @field_validator("review_text")
+    @classmethod
+    def validate_review_text(cls, value: str) -> str:
+        return clean_public_text(value, "Review", 2000)
 
 
 def current_user(

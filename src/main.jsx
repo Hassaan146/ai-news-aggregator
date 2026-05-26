@@ -43,6 +43,9 @@ const validationLimits = {
   maxReviewLength: 2000,
 };
 
+const IDLE_LOGOUT_MS = 5 * 60 * 1000;
+const LAST_ACTIVITY_KEY = "asme_last_active";
+
 const profileOptions = [
   {
     id: "default_ai_reader",
@@ -281,8 +284,11 @@ function Hero({ onOpenAuth }) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
-            style={{ fontFamily: "'Instrument Serif', serif" }}
-            className="text-4xl md:text-[64px] font-medium tracking-[-0.01em] leading-[1.1] mb-6 bg-gradient-to-b from-white via-white/95 to-white/70 bg-clip-text text-transparent max-w-4xl"
+            style={{
+              fontFamily: "'Instrument Serif', serif",
+              textShadow: "0 18px 50px rgba(0,0,0,0.55), 0 2px 16px rgba(56,189,248,0.18)",
+            }}
+            className="text-4xl md:text-[64px] font-medium tracking-[-0.01em] leading-[1.1] mb-6 text-white max-w-4xl"
           >
             Daily AI news ranked around
             <br className="hidden md:block" /> what you care about
@@ -431,6 +437,10 @@ function AuthModal({ mode, initialEmail, onClose, onAuth }) {
       setError("Please enter your name.");
       return;
     }
+    if (name.length > 80) {
+      setError("Name must be 80 characters or fewer.");
+      return;
+    }
     if (!email) {
       setError("Please enter your email.");
       return;
@@ -445,6 +455,10 @@ function AuthModal({ mode, initialEmail, onClose, onAuth }) {
     }
     if (password.length < 6) {
       setError("Password must be at least 6 characters.");
+      return;
+    }
+    if (password.length > 128) {
+      setError("Password must be 128 characters or fewer.");
       return;
     }
 
@@ -498,6 +512,7 @@ function AuthModal({ mode, initialEmail, onClose, onAuth }) {
               icon={User}
               label="Name"
               value={form.name}
+              maxLength={80}
               onChange={(name) => setForm({ ...form, name })}
             />
           )}
@@ -506,6 +521,7 @@ function AuthModal({ mode, initialEmail, onClose, onAuth }) {
             label="Email"
             value={form.email}
             type="email"
+            maxLength={254}
             onChange={(email) => setForm({ ...form, email })}
           />
           <Field
@@ -513,6 +529,7 @@ function AuthModal({ mode, initialEmail, onClose, onAuth }) {
             label="Password"
             value={form.password}
             type="password"
+            maxLength={128}
             onChange={(password) => setForm({ ...form, password })}
           />
         </div>
@@ -861,6 +878,10 @@ function Preferences({ prefs, setPrefs, onSave, onRun, onInvalid, isDigestLoadin
   function addCustomKeyword() {
     const value = customKeyword.trim().toLowerCase();
     if (!value) return;
+    if (!isSafeShortText(value)) {
+      onInvalid("Custom topics can use letters, numbers, spaces, hyphens, dots, apostrophes, slashes, plus signs, and # only.");
+      return;
+    }
     if (value.length > validationLimits.maxKeywordLength) {
       onInvalid(`Custom topics must be ${validationLimits.maxKeywordLength} characters or fewer.`);
       return;
@@ -1521,6 +1542,12 @@ function validateDigestPreferences(prefs) {
   if (keywords.some((keyword) => String(keyword).trim().length > validationLimits.maxKeywordLength)) {
     return `Each topic keyword must be ${validationLimits.maxKeywordLength} characters or fewer.`;
   }
+  if ([...sources, ...keywords, ...(prefs.excluded_keywords || [])].some((value) => !isSafeShortText(value))) {
+    return "Sources and keywords can only contain safe text characters. Remove symbols like <, >, quotes, semicolons, or backslashes.";
+  }
+  if (kinds.some((kind) => !["article", "youtube_video"].includes(kind))) {
+    return "Please choose a valid content type.";
+  }
   return "";
 }
 
@@ -1564,6 +1591,10 @@ function validateReviewPayload(payload) {
 
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
+}
+
+function isSafeShortText(value) {
+  return /^[\w\s.#/+&():,'-]+$/u.test(String(value || "").trim());
 }
 
 function formatDigestDate(value) {
@@ -1638,7 +1669,17 @@ function App() {
   const [authMode, setAuthMode] = useState(null);
   const [infoModal, setInfoModal] = useState(null);
   const [initialEmail, setInitialEmail] = useState("");
-  const [token, setToken] = useState(() => localStorage.getItem("asme_token") || "");
+  const [token, setToken] = useState(() => {
+    const storedToken = localStorage.getItem("asme_token") || "";
+    const lastActive = Number(localStorage.getItem(LAST_ACTIVITY_KEY) || Date.now());
+    if (storedToken && Date.now() - lastActive > IDLE_LOGOUT_MS) {
+      localStorage.removeItem("asme_token");
+      localStorage.removeItem("asme_user");
+      localStorage.removeItem(LAST_ACTIVITY_KEY);
+      return "";
+    }
+    return storedToken;
+  });
   const [user, setUser] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("asme_user") || "null");
@@ -1664,9 +1705,46 @@ function App() {
       });
   }, [token]);
 
+  useEffect(() => {
+    if (!token) return undefined;
+    let timer;
+
+    function expireSession() {
+      logout();
+    }
+
+    function resetTimer() {
+      localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
+      window.clearTimeout(timer);
+      timer = window.setTimeout(expireSession, IDLE_LOGOUT_MS);
+    }
+
+    function handleVisibilityChange() {
+      if (document.hidden) return;
+      const lastActive = Number(localStorage.getItem(LAST_ACTIVITY_KEY) || Date.now());
+      if (Date.now() - lastActive > IDLE_LOGOUT_MS) {
+        expireSession();
+        return;
+      }
+      resetTimer();
+    }
+
+    const events = ["click", "keydown", "mousemove", "scroll", "touchstart"];
+    events.forEach((eventName) => window.addEventListener(eventName, resetTimer, { passive: true }));
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    resetTimer();
+
+    return () => {
+      window.clearTimeout(timer);
+      events.forEach((eventName) => window.removeEventListener(eventName, resetTimer));
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [token]);
+
   function handleAuth(data) {
     localStorage.setItem("asme_token", data.token);
     localStorage.setItem("asme_user", JSON.stringify(data.user));
+    localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
     setToken(data.token);
     setUser(data.user);
     setAuthMode(null);
@@ -1680,6 +1758,7 @@ function App() {
   function logout() {
     localStorage.removeItem("asme_token");
     localStorage.removeItem("asme_user");
+    localStorage.removeItem(LAST_ACTIVITY_KEY);
     setToken("");
     setUser(null);
   }
