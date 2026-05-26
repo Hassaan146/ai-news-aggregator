@@ -364,20 +364,20 @@ function InfoModal({ type, onClose, onOpenAuth }) {
   if (!content) return null;
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 px-4">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/75 px-4 py-4 sm:grid sm:place-items-center sm:py-8">
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="liquid-glass w-full max-w-3xl rounded-[30px] p-7"
+        className="liquid-glass mx-auto w-full max-w-3xl rounded-[26px] p-5 sm:rounded-[30px] sm:p-7"
       >
-        <div className="flex items-start justify-between gap-6">
+        <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-white/50 text-xs uppercase tracking-[0.2em]">
               {content.eyebrow}
             </p>
             <h2
               style={{ fontFamily: "'Instrument Serif', serif" }}
-              className="mt-2 text-4xl md:text-5xl leading-tight"
+              className="mt-2 text-3xl leading-tight sm:text-4xl md:text-5xl"
             >
               {content.title}
             </h2>
@@ -385,7 +385,7 @@ function InfoModal({ type, onClose, onOpenAuth }) {
               {content.body}
             </p>
           </div>
-          <button className="text-white/60" onClick={onClose} type="button">
+          <button className="shrink-0 rounded-full border border-white/10 bg-white/10 px-3 py-2 text-sm text-white/75" onClick={onClose} type="button">
             Close
           </button>
         </div>
@@ -485,11 +485,11 @@ function AuthModal({ mode, initialEmail, onClose, onAuth }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 px-4">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/75 px-4 py-4 sm:grid sm:place-items-center sm:py-8">
       <motion.form
         initial={{ opacity: 0, scale: 0.96, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="liquid-glass w-full max-w-md rounded-[28px] p-7"
+        className="liquid-glass mx-auto w-full max-w-md rounded-[26px] p-5 sm:rounded-[28px] sm:p-7"
         onSubmit={submit}
       >
         <div className="flex items-center justify-between mb-6">
@@ -501,7 +501,7 @@ function AuthModal({ mode, initialEmail, onClose, onAuth }) {
               {isRegister ? "Create account" : "Login"}
             </h2>
           </div>
-          <button className="text-white/60" onClick={onClose} type="button">
+          <button className="rounded-full border border-white/10 bg-white/10 px-3 py-2 text-sm text-white/75" onClick={onClose} type="button">
             Close
           </button>
         </div>
@@ -705,15 +705,15 @@ function Dashboard({ user, token, onLogout, onUser }) {
   }
 
   return (
-    <main className="relative min-h-screen dashboard-atmosphere text-white overflow-hidden">
+    <main className="relative min-h-screen dashboard-atmosphere text-white overflow-x-hidden">
       <BackgroundVideo />
       <div className="absolute inset-0 bg-[#07111f]/58" />
-      <div className="relative z-10 min-h-screen dashboard-grid p-4 gap-4">
-        <aside className="liquid-glass rounded-[32px] p-5">
-          <div className="mb-8">
+      <div className="relative z-10 min-h-screen dashboard-grid gap-3 p-3 sm:gap-4 sm:p-4">
+        <aside className="liquid-glass rounded-[26px] p-4 sm:rounded-[32px] sm:p-5 lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)]">
+          <div className="mb-4 sm:mb-8">
             <BrandMark />
           </div>
-          <nav className="grid gap-2">
+          <nav className="flex gap-2 overflow-x-auto pb-1 lg:grid lg:overflow-visible lg:pb-0">
             <NavButton icon={Settings} active={page === "preferences"} onClick={() => setPage("preferences")}>Priorities</NavButton>
             <NavButton icon={Newspaper} active={page === "digests"} onClick={() => setPage("digests")}>Digest maker</NavButton>
             <NavButton icon={CreditCard} active={page === "subscription"} onClick={() => setPage("subscription")}>Subscription</NavButton>
@@ -724,17 +724,17 @@ function Dashboard({ user, token, onLogout, onUser }) {
           </nav>
           <button
             type="button"
-            className="mt-8 flex items-center gap-2 text-white/55 hover:text-white"
+            className="mt-4 flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white/65 hover:text-white sm:mt-8"
             onClick={onLogout}
           >
             <LogOut className="w-4 h-4" /> Logout
           </button>
         </aside>
-        <section className="overflow-auto rounded-[32px] border border-white/15 bg-[#0f1a2d]/55 backdrop-blur-xl p-5 md:p-8 shadow-2xl shadow-black/20">
+        <section className="rounded-[26px] border border-white/15 bg-[#0f1a2d]/62 p-4 shadow-2xl shadow-black/20 backdrop-blur-xl sm:rounded-[32px] sm:p-5 md:p-8">
           <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
             <div>
               <p className="text-white/50 text-sm">Workspace</p>
-              <h1 className="text-3xl md:text-5xl font-semibold tracking-[-0.03em]">AI news dashboard</h1>
+              <h1 className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl md:text-5xl">AI news dashboard</h1>
             </div>
             <div className="glass-pill px-4 py-2 text-sm text-white/80">
               {user.name} · {user.subscription_status || "free"} plan
@@ -788,38 +788,38 @@ function GuideModal({ onClose, onStart }) {
   ];
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 px-4">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/75 px-3 py-3 sm:grid sm:place-items-center sm:px-4 sm:py-8">
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="liquid-glass w-full max-w-4xl rounded-[32px] p-7"
+        className="liquid-glass mx-auto w-full max-w-4xl rounded-[24px] p-4 sm:rounded-[32px] sm:p-7"
       >
-        <div className="flex items-start justify-between gap-6">
+        <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-white/50 text-xs uppercase tracking-[0.2em]">
               Quick guide
             </p>
             <h2
               style={{ fontFamily: "'Instrument Serif', serif" }}
-              className="mt-2 text-4xl md:text-5xl leading-tight"
+              className="mt-2 text-3xl leading-tight sm:text-4xl md:text-5xl"
             >
               Here is how to use AI News
             </h2>
-            <p className="mt-4 max-w-2xl text-white/65 leading-7">
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-white/65 sm:mt-4 sm:text-base sm:leading-7">
               The app has three simple areas: priorities, digest making, and
               subscription. Follow these once and the workflow becomes natural.
             </p>
           </div>
-          <button className="text-white/60 hover:text-white" onClick={onClose} type="button">
+          <button className="shrink-0 rounded-full border border-white/10 bg-white/10 px-3 py-2 text-sm text-white/80 hover:text-white" onClick={onClose} type="button">
             Skip
           </button>
         </div>
 
-        <div className="mt-7 grid md:grid-cols-3 gap-3">
+        <div className="mt-5 grid gap-3 md:grid-cols-3">
           {steps.map((step, index) => (
             <div
               key={step.title}
-              className="rounded-3xl border border-white/15 bg-white/[0.07] p-5"
+              className="rounded-2xl border border-white/15 bg-white/[0.07] p-4 sm:rounded-3xl sm:p-5"
             >
               <div className="mb-4 grid h-10 w-10 place-items-center rounded-full bg-white text-black font-semibold">
                 {index + 1}
@@ -830,7 +830,7 @@ function GuideModal({ onClose, onStart }) {
           ))}
         </div>
 
-        <div className="mt-7 flex flex-wrap gap-3">
+        <div className="sticky bottom-0 -mx-4 mt-5 flex flex-col gap-2 border-t border-white/10 bg-[#07111f]/95 px-4 pt-4 backdrop-blur sm:static sm:mx-0 sm:mt-7 sm:flex-row sm:border-0 sm:bg-transparent sm:p-0">
           <button
             className="rounded-full bg-white px-6 py-3 font-semibold text-black"
             onClick={onStart}
@@ -1446,8 +1446,8 @@ function AdminTable({ title, rows, columns, formatValue }) {
 
 function Panel({ title, description, children }) {
   return (
-    <section className="liquid-glass rounded-[30px] p-6">
-      <h2 className="text-2xl font-semibold">{title}</h2>
+    <section className="liquid-glass rounded-[24px] p-4 sm:rounded-[30px] sm:p-6">
+      <h2 className="text-xl font-semibold sm:text-2xl">{title}</h2>
       <p className="mt-2 mb-6 text-white/55">{description}</p>
       {children}
     </section>
@@ -1658,7 +1658,7 @@ function NavButton({ icon: Icon, active, onClick, children }) {
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-left ${active ? "bg-white text-black" : "text-white/75 hover:bg-white/10"}`}
+      className={`flex shrink-0 items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm sm:text-base ${active ? "bg-white text-black" : "text-white/75 hover:bg-white/10"}`}
     >
       <Icon className="w-4 h-4" /> {children}
     </button>
